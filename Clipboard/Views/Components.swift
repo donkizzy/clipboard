@@ -69,12 +69,38 @@ struct FaviconTile: View {
     }
 }
 
-/// Image artwork: the thumbnail when available, otherwise the gradient.
+/// Image artwork: the thumbnail (or full image) when available, otherwise
+/// the placeholder gradient. Fills its frame, cropping to fit.
 struct ImageArtwork: View {
     let image: ClipContent.Image
+    var preferFullSize = false
+
+    @State private var loaded: NSImage?
+
+    private var url: URL? {
+        preferFullSize ? (image.imageURL ?? image.thumbnailURL) : (image.thumbnailURL ?? image.imageURL)
+    }
+
+    /// Thumbnails are already 352px wide; previews decode for 440pt @2x.
+    private var maxPixelSize: Int { preferFullSize ? 1_320 : Thumbnailer.maxThumbnailPixels }
 
     var body: some View {
-        Rectangle().fill(image.resolvedArtwork.linearGradient)
+        let shown = loaded ?? url.flatMap { ImageCache.shared.cachedImage(at: $0, maxPixelSize: maxPixelSize) }
+        Rectangle()
+            .fill(image.resolvedArtwork.linearGradient)
+            .overlay {
+                if let shown {
+                    Image(nsImage: shown)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFill()
+                }
+            }
+            .clipped()
+            .task(id: url) {
+                guard let url else { return }
+                loaded = await ImageCache.shared.image(at: url, maxPixelSize: maxPixelSize)
+            }
     }
 }
 

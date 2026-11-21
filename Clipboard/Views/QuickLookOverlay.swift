@@ -157,7 +157,7 @@ private struct PreviewMedia: View {
     var body: some View {
         switch clip.content {
         case .image(let image):
-            ImageArtwork(image: image)
+            ImageArtwork(image: image, preferFullSize: true)
                 .frame(height: Metrics.Preview.imageHeight)
                 .frame(maxWidth: .infinity)
 

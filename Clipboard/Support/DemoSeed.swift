@@ -56,7 +56,7 @@ enum DemoSeed {
                 id: id(4),
                 title: "Q3-forecast.numbers",
                 content: .file(.init(
-                    url: demoFolder.appending(path: "Q3-forecast.numbers"),
+                    urls: [demoFolder.appending(path: "Q3-forecast.numbers")],
                     isDirectory: false,
                     byteCount: 1_200_000,
                     kindDescription: "Numbers spreadsheet",
@@ -96,7 +96,7 @@ enum DemoSeed {
                 id: id(7),
                 title: "Brand Assets",
                 content: .file(.init(
-                    url: demoFolder.appending(path: "Brand Assets", directoryHint: .isDirectory),
+                    urls: [demoFolder.appending(path: "Brand Assets", directoryHint: .isDirectory)],
                     isDirectory: true,
                     itemCount: 48,
                     kindDescription: "Folder",
@@ -141,7 +141,7 @@ enum DemoSeed {
                 id: id(12),
                 title: "contract-final.pdf",
                 content: .file(.init(
-                    url: demoFolder.appending(path: "contract-final.pdf"),
+                    urls: [demoFolder.appending(path: "contract-final.pdf")],
                     isDirectory: false,
                     byteCount: 340_000,
                     kindDescription: "PDF Document",

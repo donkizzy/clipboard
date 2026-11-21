@@ -59,8 +59,9 @@ extension ClipContent.Image {
 }
 
 extension ClipContent.File {
-    /// "1.2 MB" for files, "48 items" for folders.
+    /// "1.2 MB" for files, "48 items" for folders, "3 items" for a multi-file copy.
     var sizeDescription: String? {
+        if urls.count > 1 { return "\(urls.count) items" }
         if isDirectory {
             guard let itemCount else { return nil }
             return itemCount == 1 ? "1 item" : "\(itemCount) items"

@@ -107,13 +107,16 @@ enum ClipContent: Hashable, Sendable {
         var pixelHeight: Int
         /// Short format name, e.g. "PNG" or "JPEG".
         var format: String
+        /// Full-size original, for Quick Look and paste.
+        var imageURL: URL?
         var thumbnailURL: URL?
         /// Placeholder artwork shown until (or instead of) a thumbnail.
         var artwork: GradientPair?
     }
 
     struct File: Hashable, Sendable {
-        var url: URL
+        /// Every copied file; most copies hold one.
+        var urls: [URL]
         var isDirectory: Bool
         var byteCount: Int64?
         var itemCount: Int?
@@ -121,6 +124,8 @@ enum ClipContent: Hashable, Sendable {
         var kindDescription: String
         /// Tint for the folder or page glyph, derived from the file type.
         var accent: RGBColor?
+
+        var url: URL { urls[0] }
     }
 
     var kind: ItemKind {
@@ -181,7 +186,7 @@ struct ClipSnapshot: Identifiable, Hashable, Sendable {
         case .image(let image):
             parts.append(image.format)
         case .file(let file):
-            parts.append(file.url.path(percentEncoded: false))
+            parts.append(contentsOf: file.urls.map { $0.path(percentEncoded: false) })
             parts.append(file.kindDescription)
         }
         if let source { parts.append(source.name) }
