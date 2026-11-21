@@ -69,12 +69,26 @@ targets:
         BUNDLE_LOADER: $(TEST_HOST)
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/Clipboard.app/Contents/MacOS/Clipboard
 
+  ClipboardUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: ClipboardUITests
+    dependencies:
+      - target: Clipboard
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.amosgodwin.ClipboardUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Clipboard
+
 schemes:
   Clipboard:
     build:
       targets:
         Clipboard: all
         ClipboardTests: [test]
+        ClipboardUITests: [test]
     run:
       config: Debug
       commandLineArguments:
@@ -86,5 +100,6 @@ schemes:
         - Clipboard
       targets:
         - ClipboardTests
+        - ClipboardUITests
     archive:
       config: Release

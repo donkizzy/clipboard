@@ -62,6 +62,39 @@ struct PanelModelTests {
         #expect(model.counts[.pinned] == 2)
     }
 
+    @Test("Pinning with pinned-on-top keeps the same item selected as it moves")
+    func selectionFollowsItem() {
+        model.preferences.pinnedOnTop = true
+        model.panelWillShow()
+        model.select(index: 5)
+        let target = model.selected
+        model.togglePin()
+        #expect(model.selected == target.map { var pinned = $0; pinned.isPinned = true; return pinned })
+        #expect(model.selectedIndex == 2) // now the third pinned item, at the top
+        model.panelDidHide()
+    }
+
+    @Test("A new item arriving doesn't change what's selected")
+    func selectionSurvivesInsertions() async {
+        model.select(index: 3)
+        let target = model.selected?.id
+        store.insertForTesting(TestSupport.snapshot("arrived while open"))
+        for _ in 0..<50 where model.visible.count != 13 { await Task.yield() }
+        #expect(model.selected?.id == target)
+        #expect(model.selectedIndex == 4)
+    }
+
+    @Test("Unpinning the last pinned item from Quick Look closes the preview")
+    func unpinLastPinnedClosesPreview() {
+        model.setFilter(.pinned)
+        model.togglePin()
+        model.openPreview()
+        #expect(model.isPreviewOpen)
+        model.togglePin()
+        #expect(model.visible.isEmpty)
+        #expect(!model.isPreviewOpen)
+    }
+
     @Test("Esc closes the preview, then clears the search, then gives up")
     func escapeOrder() {
         model.query = "a"

@@ -122,6 +122,22 @@ struct HistoryDatabaseTests {
         #expect(TestSupport.files(in: paths.imagesDirectory).count == 1)
     }
 
+    @Test("Favicons are deleted with the last link that uses them")
+    func favicons() async throws {
+        let first = try #require(CaptureProcessor.prepare(.link(URL(string: "https://github.com/a")!), source: nil))
+        let second = try #require(CaptureProcessor.prepare(.link(URL(string: "https://github.com/b")!), source: nil))
+        try await database.ingest(first, retentionLimit: nil)
+        try await database.ingest(second, retentionLimit: nil)
+        try Data([1]).write(to: paths.faviconsDirectory.appending(path: "gh.png"))
+        try await database.updateLinkMetadata(for: first.id, title: nil, faviconFileName: "gh.png")
+        try await database.updateLinkMetadata(for: second.id, title: nil, faviconFileName: "gh.png")
+
+        try await database.delete(first.id)
+        #expect(TestSupport.files(in: paths.faviconsDirectory) == ["gh.png"], "still used by the second link")
+        try await database.clear(keepPinned: true)
+        #expect(TestSupport.files(in: paths.faviconsDirectory).isEmpty)
+    }
+
     // MARK: Payloads
 
     @Test("Long text keeps a preview in the row and the full text for paste")

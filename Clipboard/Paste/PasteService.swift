@@ -20,6 +20,11 @@ final class PasteService {
     /// capture doesn't record it again. Returns `false` if nothing was written.
     @discardableResult
     func write(_ payload: ClipPayload) async -> Bool {
+        // Files that have since been moved or deleted can't be pasted.
+        if case .files(let urls) = payload,
+           !urls.contains(where: { FileManager.default.fileExists(atPath: $0.path(percentEncoded: false)) }) {
+            return false
+        }
         // Image bytes can be large; read them off the main thread first.
         var imageData: (Data, NSPasteboard.PasteboardType)?
         if case .image(let url) = payload {

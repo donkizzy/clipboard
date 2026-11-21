@@ -17,7 +17,7 @@ struct PasteboardMonitorTests {
     private let name = NSPasteboard.Name("ClipboardTests-\(UUID().uuidString)")
     private let collector = Collector()
     private let ownWrites = OwnPasteboardWrites()
-    private let frontmost = OSAllocatedUnfairLock<SourceApp?>(initialState: TestSupport.safari)
+    private let frontmost = FrontmostAppTracker.State(current: TestSupport.safari)
 
     private func makeMonitor(policy: CapturePolicy = CapturePolicy()) -> PasteboardMonitor {
         let collector = collector
@@ -68,9 +68,44 @@ struct PasteboardMonitorTests {
 
     @Test("Skips items from ignored apps")
     func skipsIgnoredApps() async {
-        frontmost.withLock { $0 = SourceApp(name: "1Password", bundleID: "com.1password.1password") }
+        frontmost.update(SourceApp(name: "1Password", bundleID: "com.1password.1password"))
         let monitor = makeMonitor()
         write("secret")
+        await monitor.poll()
+        #expect(collector.all.isEmpty)
+    }
+
+    @Test("A copy in an ignored app is skipped even after a quick switch away")
+    func skipsAfterQuickSwitch() async {
+        let monitor = makeMonitor()
+        await monitor.poll() // consume the initial state
+        frontmost.update(SourceApp(name: "Keychain Access", bundleID: "com.apple.keychainaccess"))
+        write("p4ssw0rd")
+        frontmost.update(TestSupport.safari) // ⌘Tab before the next poll
+        await monitor.poll()
+        #expect(collector.all.allSatisfy { $0.title != "p4ssw0rd" })
+    }
+
+    @Test("Ignored apps are matched by the source marker even when the app can't be resolved")
+    func skipsByRawMarker() async {
+        var policy = CapturePolicy()
+        policy.ignoredBundleIDs.insert("com.example.vault-helper")
+        let monitor = makeMonitor(policy: policy)
+        let pasteboard = pasteboard
+        pasteboard.clearContents()
+        pasteboard.setString("secret", forType: .string)
+        pasteboard.setString("com.example.vault-helper", forType: PasteboardReader.sourceType)
+        await monitor.poll()
+        #expect(collector.all.isEmpty)
+    }
+
+    @Test("Our own writes are recognised by the source marker (e.g. after a relaunch)")
+    func skipsOwnMarker() async throws {
+        let monitor = makeMonitor()
+        let pasteboard = pasteboard
+        pasteboard.clearContents()
+        pasteboard.setString("pasted earlier", forType: .string)
+        pasteboard.setString(try #require(Bundle.main.bundleIdentifier), forType: PasteboardReader.sourceType)
         await monitor.poll()
         #expect(collector.all.isEmpty)
     }

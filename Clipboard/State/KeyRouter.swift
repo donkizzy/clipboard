@@ -114,18 +114,30 @@ enum KeyRouter {
         }
     }
 
+    /// ⌘1…⌘6 by physical key, so they work on layouts where the number row
+    /// types symbols without Shift (AZERTY's "&", "é", …).
+    private static let digitKeyCodes: [UInt16: Int] = [18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6]
+
+    /// ANSI letter positions, used when the active layout isn't Latin
+    /// (Russian, Greek…), matching how macOS resolves menu shortcuts there.
+    private static let ansiLetters: [UInt16: String] = [
+        0: "a", 8: "c", 13: "w", 35: "p", 6: "z", 7: "x", 9: "v", 43: ",",
+    ]
+
     private static func commandShortcut(_ press: KeyPress, _ context: KeyContext) -> KeyCommand? {
         let shift = press.modifiers.contains(.shift)
         if press.keyCode == KeyPress.Key.returnKey || press.keyCode == KeyPress.Key.keypadEnter {
             return .paste
         }
-        switch press.characters.lowercased() {
+        if let digit = digitKeyCodes[press.keyCode], digit <= HistoryFilter.allCases.count {
+            return .selectFilter(HistoryFilter.allCases[digit - 1])
+        }
+        let typed = press.characters.lowercased()
+        let key = typed.unicodeScalars.allSatisfy(\.isASCII) ? typed : (ansiLetters[press.keyCode] ?? typed)
+        switch key {
         case "p": return .togglePin
         case "w": return .close
         case ",": return .openSettings
-        case "1", "2", "3", "4", "5", "6":
-            let index = Int(press.characters)! - 1
-            return .selectFilter(HistoryFilter.allCases[index])
         case "a" where context.isSearchFocused: return .edit(.selectAll)
         case "c": return context.isSearchFocused ? .edit(.copy) : .copy
         case "x" where context.isSearchFocused: return .edit(.cut)

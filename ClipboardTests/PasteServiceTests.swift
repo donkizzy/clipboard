@@ -46,11 +46,18 @@ struct PasteServiceTests {
     }
 
     @Test("Files are written as file URLs")
-    func files() async {
-        let urls = [URL(filePath: "/tmp/a.txt"), URL(filePath: "/tmp/b.txt")]
+    func files() async throws {
+        let root = try TestSupport.temporaryPaths().root
+        let urls = [root.appending(path: "a.txt"), root.appending(path: "b.txt")]
+        for url in urls { try Data().write(to: url) }
         #expect(await service.write(.files(urls)))
         let read = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]
         #expect(read?.map(\.path) == urls.map(\.path))
+    }
+
+    @Test("Files that no longer exist write nothing")
+    func missingFiles() async {
+        #expect(await service.write(.files([URL(filePath: "/nonexistent/gone.pdf")])) == false)
     }
 
     @Test("Writes are registered as our own, so capture ignores them")

@@ -63,6 +63,7 @@ struct AppBadge: View {
             }
         }
         .task(id: bundleID) {
+            icon = nil
             guard let bundleID else { return }
             icon = await AppIconCache.shared.icon(for: bundleID)
         }
@@ -108,6 +109,7 @@ struct FaviconTile: View {
         .frame(width: size, height: size)
         .clipShape(shape)
         .task(id: link.faviconURL) {
+            favicon = nil
             guard let url = link.faviconURL else { return }
             favicon = await ImageCache.shared.image(at: url, maxPixelSize: Self.pixelSize)
         }
@@ -143,6 +145,7 @@ struct ImageArtwork: View {
             }
             .clipped()
             .task(id: url) {
+                loaded = nil
                 guard let url else { return }
                 loaded = await ImageCache.shared.image(at: url, maxPixelSize: maxPixelSize)
             }

@@ -130,12 +130,16 @@ struct ImageStore: Sendable {
         if let thumbnailFileName { try? fileManager.removeItem(at: thumbnailURL(thumbnailFileName)) }
     }
 
+    func removeFavicon(_ fileName: String) {
+        try? FileManager.default.removeItem(at: faviconURL(fileName))
+    }
+
     /// Deletes files no item refers to (e.g. after a crash between writing
     /// a file and saving its row).
     func removeOrphans(keeping referenced: Set<String>) -> Int {
         let fileManager = FileManager.default
         var removed = 0
-        for directory in [paths.imagesDirectory, paths.thumbnailsDirectory] {
+        for directory in [paths.imagesDirectory, paths.thumbnailsDirectory, paths.faviconsDirectory] {
             let names = (try? fileManager.contentsOfDirectory(atPath: directory.path(percentEncoded: false))) ?? []
             for name in names where !referenced.contains(name) {
                 if (try? fileManager.removeItem(at: directory.appending(path: name))) != nil { removed += 1 }

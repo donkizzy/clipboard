@@ -67,13 +67,14 @@ private final class ToastPresenter {
 private struct ToastHost: View {
     let presenter: ToastPresenter
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
             if let toast = presenter.toast {
                 ToastView(toast: toast)
                     .transition(.asymmetric(
-                        insertion: .offset(y: 10).combined(with: .opacity).animation(Motion.toast),
+                        insertion: .offset(y: reduceMotion ? 0 : 10).combined(with: .opacity).animation(Motion.toast),
                         removal: .opacity.animation(.easeOut(duration: 0.18))
                     ))
             }

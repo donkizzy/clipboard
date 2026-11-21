@@ -77,6 +77,23 @@ final class PanelController {
         isVisible ? hide() : show()
     }
 
+    /// Renders the panel once, invisibly, at launch. The first real open
+    /// otherwise pays for the window's backing store and SwiftUI's first
+    /// full render (~50–90ms); afterwards every open costs ~11ms.
+    func prewarm() {
+        guard !isVisible else { return }
+        position(on: screenUnderMouse())
+        model.panelWillShow()
+        panel.alphaValue = 0
+        panel.orderFrontRegardless()
+        panel.contentView?.layoutSubtreeIfNeeded()
+        panel.displayIfNeeded()
+        CATransaction.flush()
+        panel.orderOut(nil)
+        panel.alphaValue = 1
+        model.panelDidHide()
+    }
+
     func show() {
         guard !isVisible else { return }
         dismissTask?.cancel()
@@ -87,7 +104,13 @@ final class PanelController {
 
         panel.orderFrontRegardless()
         panel.makeKey()
+        // Make sure the field exists (first open) before focusing it, so the
+        // first keystroke can never land on the results.
+        panel.contentView?.layoutSubtreeIfNeeded()
         searchFocus.focus()
+        if !searchFocus.isFocused {
+            DispatchQueue.main.async { [searchFocus] in searchFocus.focus() }
+        }
 
         withAnimation(Motion.panelOpen) {
             model.setPresented(true)
@@ -116,6 +139,13 @@ final class PanelController {
         panel.convertToScreen(panel.panelRect.isEmpty ? panel.frame : panel.panelRect)
     }
 
+    /// "Link, Framer Motion — layout animations, from Safari, 2 minutes ago, 2 of 12".
+    private func announceSelection() {
+        guard AccessibilityAnnouncer.isVoiceOverRunning, let clip = model.selected else { return }
+        let position = "\(model.selectedIndex + 1) of \(model.visible.count)"
+        AccessibilityAnnouncer.announce("\(clip.accessibilityDescription(now: model.now)), \(position)")
+    }
+
     // MARK: Keyboard
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
@@ -139,6 +169,7 @@ final class PanelController {
         case .moveSelection(let delta):
             model.moveSelection(by: delta)
             searchFocus.blur()
+            announceSelection()
         case .copy:
             model.copySelected()
         case .paste:
@@ -152,6 +183,7 @@ final class PanelController {
             model.togglePin()
         case .selectFilter(let filter):
             model.setFilter(filter)
+            AccessibilityAnnouncer.announce("\(filter.title), \(model.visible.count) items")
         case .escape:
             let wasPreviewing = model.isPreviewOpen
             if !model.handleEscape() {
@@ -279,6 +311,39 @@ extension PanelController: PanelActionHandling {
         case .system:
             return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
         }
+    }
+}
+
+// MARK: - Benchmark
+
+extension PanelController {
+    /// `--benchmark-open`: opens and closes the panel repeatedly, timing the
+    /// synchronous work up to the first frame (show, SwiftUI update,
+    /// layout, display, Core Animation commit), prints the results and quits.
+    func runOpenBenchmark(iterations: Int = 30) async {
+        try? await Task.sleep(for: .seconds(1)) // let launch work settle
+        var samples: [Double] = []
+        for _ in 0..<iterations {
+            hide()
+            try? await Task.sleep(for: .milliseconds(80))
+            let start = ContinuousClock.now
+            show()
+            panel.contentView?.layoutSubtreeIfNeeded()
+            panel.displayIfNeeded()
+            CATransaction.flush()
+            let elapsed = ContinuousClock.now - start
+            samples.append(Double(elapsed.components.attoseconds) / 1e15 + Double(elapsed.components.seconds) * 1_000)
+        }
+        hide()
+        let warm = samples.dropFirst().sorted()
+        let median = warm[warm.count / 2]
+        let p95 = warm[min(warm.count - 1, Int(Double(warm.count) * 0.95))]
+        print(String(
+            format: "open-benchmark items=%d first=%.1fms median=%.1fms p95=%.1fms max=%.1fms",
+            model.store.snapshots.count, samples[0], median, p95, warm.last ?? 0
+        ))
+        fflush(stdout)
+        NSApp.terminate(nil)
     }
 }
 

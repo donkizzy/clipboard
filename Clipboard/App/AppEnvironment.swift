@@ -25,7 +25,7 @@ final class AppEnvironment {
         if isDemo {
             // Deterministic sample data for screenshots and UI tests; the
             // real history on disk is left untouched.
-            store = InMemoryClipStore(snapshots: DemoSeed.snapshots())
+            store = InMemoryClipStore(snapshots: DemoSeed.requestedCount.map { DemoSeed.snapshots(count: $0) } ?? DemoSeed.snapshots())
         } else {
             let paths = AppPaths.standard
             let history = HistoryStore(
@@ -81,8 +81,13 @@ final class AppEnvironment {
 
     func start() {
         capture?.start()
+        panelController.prewarm()
         KeyboardShortcuts.onKeyDown(for: .togglePanel) { [weak panelController] in
             panelController?.toggle()
+        }
+        if ProcessInfo.processInfo.arguments.contains("--benchmark-open") {
+            Task { await panelController.runOpenBenchmark() }
+            return
         }
         // Demo mode opens straight into the panel for screenshots and UI tests;
         // normally it waits for the hotkey or the menu bar.

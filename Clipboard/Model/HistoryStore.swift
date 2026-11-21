@@ -112,7 +112,8 @@ final class HistoryStore: ClipStore {
         enqueue { try await $0.enforceRetention(limit: limit) }
     }
 
-    /// Full content for copy/paste, read after any queued writes.
+    /// Full content for copy/paste. Read directly from the database actor,
+    /// not through the write queue, so a slow write never delays a paste.
     func payload(for id: UUID) async -> ClipPayload? {
         try? await database.value.payload(for: id)
     }
@@ -164,6 +165,13 @@ extension HistoryStore {
     nonisolated static func makeContainer(paths: AppPaths) -> ModelContainer {
         do {
             try paths.prepare()
+        } catch {
+            // Can't create our folders (permissions, disk): don't touch the
+            // existing store, just run in memory for this session.
+            Log.store.fault("Couldn't create the history folder: \(error.localizedDescription, privacy: .public)")
+            return makeInMemoryContainer()
+        }
+        do {
             return try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, url: paths.storeURL))
         } catch {
             Log.store.error("Couldn't open history store: \(error.localizedDescription, privacy: .public)")

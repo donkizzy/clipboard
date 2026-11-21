@@ -114,12 +114,13 @@ actor HistoryDatabase: ModelActor {
         Log.store.info("Retention removed \(items.count) item(s)")
     }
 
-    /// Deletes image files no item refers to.
+    /// Deletes image, thumbnail and favicon files no item refers to.
     func removeOrphanedFiles() throws -> Int {
-        let referenced = try context.fetch(FetchDescriptor<ClipItem>(predicate: #Predicate { $0.kindRaw == "image" }))
+        let referenced = try context.fetch(FetchDescriptor<ClipItem>(predicate: #Predicate { $0.kindRaw == "image" || $0.kindRaw == "link" }))
             .reduce(into: Set<String>()) { names, item in
                 if let name = item.imageFileName { names.insert(name) }
                 if let name = item.thumbnailFileName { names.insert(name) }
+                if let name = item.faviconFileName { names.insert(name) }
             }
         return images.removeOrphans(keeping: referenced)
     }
@@ -132,13 +133,21 @@ actor HistoryDatabase: ModelActor {
         return try context.fetch(descriptor).first
     }
 
-    /// Deletes rows, then their files once the deletion is saved.
+    /// Deletes rows, then their files once the deletion is saved. Favicons
+    /// are shared per host, so they go only when no remaining link uses them
+    /// (otherwise they'd leave a record of visited hosts behind).
     private func remove(_ items: [ClipItem]) throws {
         let files = items.map { ($0.imageFileName, $0.thumbnailFileName) }
+        let favicons = Set(items.compactMap(\.faviconFileName))
         items.forEach(context.delete)
         try context.save()
         for (fileName, thumbnailFileName) in files {
             images.remove(fileName: fileName, thumbnailFileName: thumbnailFileName)
+        }
+        for favicon in favicons {
+            var stillUsed = FetchDescriptor<ClipItem>(predicate: #Predicate { $0.faviconFileName == favicon })
+            stillUsed.fetchLimit = 1
+            if try context.fetchCount(stillUsed) == 0 { images.removeFavicon(favicon) }
         }
     }
 }

@@ -38,6 +38,7 @@ struct ToastView: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isStaticText)
         .accessibilityIdentifier("toast")
+        .onAppear { AccessibilityAnnouncer.announce(toast.message) }
     }
 }
 

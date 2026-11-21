@@ -9,6 +9,33 @@ enum DemoSeed {
         ProcessInfo.processInfo.arguments.contains(launchArgument)
     }
 
+    /// `--demo-count N` pads the demo history to N items (for performance work).
+    static var requestedCount: Int? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "--demo-count"), arguments.indices.contains(index + 1) else { return nil }
+        return Int(arguments[index + 1])
+    }
+
+    /// The twelve design items followed by synthetic variations of them,
+    /// each a minute older than the last, up to `count` items.
+    static func snapshots(count: Int, now: Date = .now) -> [ClipSnapshot] {
+        let base = snapshots(now: now)
+        guard count > base.count else { return Array(base.prefix(count)) }
+        var result = base
+        result.reserveCapacity(count)
+        for index in base.count..<count {
+            let template = base[index % base.count]
+            result.append(ClipSnapshot(
+                title: "\(template.title) #\(index)",
+                content: template.content,
+                source: template.source,
+                createdAt: now.addingTimeInterval(-Double(index) * 60 - 7_200),
+                isPinned: false
+            ))
+        }
+        return result
+    }
+
     static func snapshots(now: Date = .now) -> [ClipSnapshot] {
         let notes = SourceApp(name: "Notes", bundleID: "com.apple.Notes", tint: RGBColor(0xF5C518))
         let safari = SourceApp(name: "Safari", bundleID: "com.apple.Safari", tint: RGBColor(0x1A86FF))

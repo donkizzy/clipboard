@@ -48,8 +48,7 @@ final class PanelModel {
     var query = "" {
         didSet {
             guard query != oldValue else { return }
-            selectedIndex = 0
-            refresh()
+            refresh(resettingSelection: true)
         }
     }
 
@@ -61,7 +60,10 @@ final class PanelModel {
     /// Per-tab counts across the whole history (independent of the search text).
     private(set) var counts: [HistoryFilter: Int] = [:]
 
+    /// Index into `visible`. Derived from `selectedID` after every refresh,
+    /// so the same item stays selected when the list reorders or grows.
     private(set) var selectedIndex = 0
+    @ObservationIgnored private var selectedID: ClipSnapshot.ID?
     private(set) var isPreviewOpen = false
     private(set) var toast: Toast?
 
@@ -106,8 +108,7 @@ final class PanelModel {
         query = ""
         isPreviewOpen = false
         toast = nil
-        refresh()
-        selectedIndex = 0
+        refresh(resettingSelection: true)
         startClock()
     }
 
@@ -127,19 +128,18 @@ final class PanelModel {
     func setFilter(_ newFilter: HistoryFilter) {
         guard newFilter != filter else { return }
         filter = newFilter
-        selectedIndex = 0
         isPreviewOpen = false
-        refresh()
+        refresh(resettingSelection: true)
     }
 
     func select(index: Int) {
         guard !visible.isEmpty else { return }
-        selectedIndex = min(max(index, 0), visible.count - 1)
+        setSelection(index)
     }
 
     func select(_ id: ClipSnapshot.ID) {
         guard let index = visible.firstIndex(where: { $0.id == id }) else { return }
-        selectedIndex = index
+        setSelection(index)
         isPreviewOpen = false
     }
 
@@ -171,7 +171,6 @@ final class PanelModel {
         guard let clip = clip(for: id) else { return }
         store.delete(clip.id)
         refresh()
-        if visible.isEmpty { isPreviewOpen = false }
         show(.deleted)
     }
 
@@ -229,12 +228,32 @@ final class PanelModel {
         return visible.first { $0.id == id }
     }
 
-    /// Recomputes `visible` and `counts` from the store.
-    private func refresh() {
+    /// Recomputes `visible` and `counts` from the store, keeping the
+    /// selected item selected. If it's gone, the selection stays at the same
+    /// position (i.e. moves to the next item), clamped to the end.
+    private func refresh(resettingSelection: Bool = false) {
         let all = store.snapshots
         visible = historyQuery.apply(to: all)
         counts = HistoryQuery.counts(for: all)
-        if selectedIndex >= visible.count { selectedIndex = max(0, visible.count - 1) }
+
+        if resettingSelection {
+            setSelection(0)
+        } else if let selectedID, let index = visible.firstIndex(where: { $0.id == selectedID }) {
+            selectedIndex = index
+        } else {
+            setSelection(selectedIndex)
+        }
+        if visible.isEmpty { isPreviewOpen = false }
+    }
+
+    private func setSelection(_ index: Int) {
+        guard !visible.isEmpty else {
+            selectedIndex = 0
+            selectedID = nil
+            return
+        }
+        selectedIndex = min(max(index, 0), visible.count - 1)
+        selectedID = visible[selectedIndex].id
     }
 
     /// Re-runs `refresh()` whenever the store's snapshots or the

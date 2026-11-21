@@ -44,7 +44,9 @@ final class LinkMetadataService {
 
         let title = metadata.title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         var faviconFileName: String?
-        if let host = url.displayHost, let iconProvider = metadata.iconProvider ?? metadata.imageProvider {
+        // Only the site icon: an article's hero image (`imageProvider`) would
+        // otherwise become the cached favicon for the whole host.
+        if let host = url.displayHost, let iconProvider = metadata.iconProvider {
             faviconFileName = await saveFavicon(from: iconProvider, host: host)
         }
         return Metadata(title: title, faviconFileName: faviconFileName)

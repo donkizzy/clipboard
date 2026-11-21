@@ -28,6 +28,10 @@ enum TestSupport {
 
     static let safari = SourceApp(name: "Safari", bundleID: "com.apple.Safari")
 
+    static func snapshot(_ text: String, at date: Date = .now) -> ClipSnapshot {
+        ClipSnapshot(title: text, content: .text(.init(text)), source: safari, createdAt: date)
+    }
+
     static func textClip(_ text: String, at date: Date = .now, source: SourceApp? = safari) -> PreparedClip {
         CaptureProcessor.prepare(.text(text), source: source, now: date)!
     }

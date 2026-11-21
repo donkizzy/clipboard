@@ -13,7 +13,7 @@ actor PasteboardMonitor {
     static let pollInterval: Duration = .milliseconds(500)
 
     private let pasteboard: NSPasteboard
-    private let frontmostApp: OSAllocatedUnfairLock<SourceApp?>
+    private let frontmostApp: FrontmostAppTracker.State
     private let ownWrites: OwnPasteboardWrites
     private let sink: Sink
     private var policy: CapturePolicy
@@ -22,7 +22,7 @@ actor PasteboardMonitor {
 
     init(
         pasteboardName: NSPasteboard.Name = .general,
-        frontmostApp: OSAllocatedUnfairLock<SourceApp?>,
+        frontmostApp: FrontmostAppTracker.State,
         ownWrites: OwnPasteboardWrites,
         policy: CapturePolicy,
         sink: @escaping Sink
@@ -38,7 +38,8 @@ actor PasteboardMonitor {
         guard pollTask == nil else { return }
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.poll()
+                guard let self else { return }
+                await self.poll()
                 try? await Task.sleep(for: Self.pollInterval, tolerance: .milliseconds(150))
             }
         }
@@ -55,6 +56,9 @@ actor PasteboardMonitor {
 
     /// Checks for a change and captures it. Internal so tests can drive it.
     func poll() async {
+        // Apps that were frontmost at any point since the last poll: a copy
+        // in an ignored app followed by a quick ⌘Tab must still be skipped.
+        let recentlyActive = frontmostApp.takeRecentBundleIDs()
         let changeCount = pasteboard.changeCount
         guard changeCount != lastChangeCount else { return }
         lastChangeCount = changeCount
@@ -64,8 +68,13 @@ actor PasteboardMonitor {
         // contents (possibly a password) are read into memory.
         let types = PasteboardReader.types(of: pasteboard)
         guard !types.isEmpty else { return }
-        let source = resolveSource(markedBundleID: pasteboard.string(forType: PasteboardReader.sourceType))
-        if let reason = PrivacyFilter.skipReason(types: types, sourceBundleID: source?.bundleID, policy: policy) {
+        let markedBundleID = pasteboard.string(forType: PasteboardReader.sourceType)
+        // Our own write (e.g. the last paste-back, seen again after a relaunch).
+        if let markedBundleID, markedBundleID == Bundle.main.bundleIdentifier { return }
+
+        let source = resolveSource(markedBundleID: markedBundleID)
+        let candidates = [markedBundleID, source?.bundleID].compactMap(\.self) + recentlyActive
+        if let reason = PrivacyFilter.skipReason(types: types, sourceBundleIDs: candidates, policy: policy) {
             Log.capture.debug("Skipped pasteboard change: \(String(describing: reason), privacy: .public)")
             return
         }
@@ -83,7 +92,7 @@ actor PasteboardMonitor {
         if let markedBundleID, let app = SourceApp(bundleID: markedBundleID) {
             return app
         }
-        return frontmostApp.withLock { $0 }
+        return frontmostApp.current
     }
 }
 
@@ -94,7 +103,11 @@ final class OwnPasteboardWrites: Sendable {
     private let changeCounts = OSAllocatedUnfairLock<Set<Int>>(initialState: [])
 
     func register(_ changeCount: Int) {
-        changeCounts.withLock { _ = $0.insert(changeCount) }
+        changeCounts.withLock { counts in
+            counts.insert(changeCount)
+            // Counts only grow; anything far behind can never be seen again.
+            counts = counts.filter { $0 > changeCount - 64 }
+        }
     }
 
     /// True (and forgets it) if `changeCount` was ours.
@@ -106,8 +119,39 @@ final class OwnPasteboardWrites: Sendable {
 /// Tracks the frontmost app (ignoring ourselves) for source attribution.
 @MainActor
 final class FrontmostAppTracker {
-    /// Readable from any thread.
-    let current = OSAllocatedUnfairLock<SourceApp?>(initialState: nil)
+    /// Thread-safe view of the frontmost app, shared with the monitor.
+    final class State: Sendable {
+        private struct Value {
+            var current: SourceApp?
+            var recentBundleIDs: [String] = []
+        }
+
+        private let value = OSAllocatedUnfairLock(initialState: Value())
+
+        init(current: SourceApp? = nil) {
+            value.withLock { $0.current = current }
+        }
+
+        var current: SourceApp? { value.withLock { $0.current } }
+
+        func update(_ app: SourceApp) {
+            value.withLock { value in
+                value.current = app
+                if let id = app.bundleID { value.recentBundleIDs.append(id) }
+            }
+        }
+
+        /// Apps activated since the last call (plus the current one).
+        func takeRecentBundleIDs() -> [String] {
+            value.withLock { value in
+                let recent = value.recentBundleIDs
+                value.recentBundleIDs = []
+                return recent
+            }
+        }
+    }
+
+    let current = State()
     private var observer: NSObjectProtocol?
 
     func start() {
@@ -129,7 +173,7 @@ final class FrontmostAppTracker {
 
     private func store(_ source: SourceApp?) {
         guard let source else { return }
-        current.withLock { $0 = source }
+        current.update(source)
     }
 }
 

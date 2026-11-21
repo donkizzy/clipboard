@@ -7,7 +7,16 @@ struct RootView: View {
     let searchFocus: SearchFocus
 
     @Environment(\.colorScheme) private var systemScheme
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceTransparency) private var systemReduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var reduceTransparency: Bool {
+        #if DEBUG
+        systemReduceTransparency || DebugScenario.forcesReduceTransparency
+        #else
+        systemReduceTransparency
+        #endif
+    }
 
     var body: some View {
         let scheme = resolvedScheme
@@ -35,6 +44,7 @@ struct RootView: View {
                 QuickLookOverlay(
                     clip: clip,
                     now: model.now,
+                    loadPayload: { [store = model.store] in await store.payload(for: $0) },
                     onCopy: { model.copySelected() },
                     onTogglePin: { model.togglePin(clip.id) },
                     onClose: { model.closePreview() }
@@ -48,7 +58,7 @@ struct RootView: View {
                     .id(toast.id)
                     .padding(.bottom, Metrics.Toast.bottomInset)
                     .transition(.asymmetric(
-                        insertion: .offset(y: 10).combined(with: .opacity).animation(Motion.toast),
+                        insertion: .offset(y: reduceMotion ? 0 : 10).combined(with: .opacity).animation(Motion.toast),
                         removal: .opacity.animation(.easeOut(duration: 0.12))
                     ))
             }
@@ -72,7 +82,9 @@ struct RootView: View {
     @ViewBuilder
     private func results(actions: ClipActions) -> some View {
         if model.visible.isEmpty {
-            EmptyState()
+            EmptyState(kind: model.query.trimmingCharacters(in: .whitespaces).isEmpty
+                ? (model.filter == .all ? .noHistory : .emptyFilter(model.filter))
+                : .noMatches)
                 .transition(.opacity.animation(.easeOut(duration: 0.3)))
         } else {
             switch model.layout {

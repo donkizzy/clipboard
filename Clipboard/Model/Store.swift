@@ -43,6 +43,11 @@ final class InMemoryClipStore: ClipStore {
         snapshots.removeAll { !keepPinned || !$0.isPinned }
     }
 
+    /// Simulates a capture arriving (tests and previews).
+    func insertForTesting(_ snapshot: ClipSnapshot) {
+        snapshots.insert(snapshot, at: 0)
+    }
+
     func payload(for id: UUID) async -> ClipPayload? {
         guard let clip = snapshots.first(where: { $0.id == id }) else { return nil }
         switch clip.content {

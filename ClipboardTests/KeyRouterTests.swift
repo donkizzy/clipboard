@@ -90,12 +90,20 @@ struct KeyRouterTests {
         #expect(route(press(35, "p", .command), context()) == .togglePin)
     }
 
-    @Test("⌘1…⌘6 select the filters in order")
+    @Test("⌘1…⌘6 select the filters in order, by physical key")
     func filters() {
-        for (index, filter) in HistoryFilter.allCases.enumerated() {
-            #expect(route(press(18, "\(index + 1)", .command), context()) == .selectFilter(filter))
+        let keyCodes: [UInt16] = [18, 19, 20, 21, 23, 22]
+        for (keyCode, filter) in zip(keyCodes, HistoryFilter.allCases) {
+            #expect(route(press(keyCode, "?", .command), context()) == .selectFilter(filter))
         }
         #expect(route(press(26, "7", .command), context()) == nil)
+    }
+
+    @Test("Shortcuts work on non-Latin layouts and AZERTY")
+    func otherLayouts() {
+        #expect(route(press(35, "з", .command), context()) == .togglePin) // Russian ⌘P
+        #expect(route(press(18, "&", .command), context()) == .selectFilter(.all)) // AZERTY ⌘1
+        #expect(route(press(0, "ф", .command), context(focused: true)) == .edit(.selectAll)) // Russian ⌘A
     }
 
     @Test("Esc always routes to the layered escape")

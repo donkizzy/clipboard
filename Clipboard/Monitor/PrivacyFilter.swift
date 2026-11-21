@@ -53,6 +53,13 @@ enum PrivacyFilter {
     /// Returns why the item must be skipped, or `nil` to capture it.
     /// Called with the pasteboard's types *before* any contents are read.
     static func skipReason(types: [String], sourceBundleID: String?, policy: CapturePolicy) -> Reason? {
+        skipReason(types: types, sourceBundleIDs: sourceBundleID.map { [$0] } ?? [], policy: policy)
+    }
+
+    /// Checks every app that may have produced the copy: the
+    /// `org.nspasteboard.source` marker, the resolved source and any app
+    /// that was frontmost since the last poll.
+    static func skipReason(types: [String], sourceBundleIDs: [String], policy: CapturePolicy) -> Reason? {
         if policy.isPaused { return .paused }
         let types = Set(types)
         if types.contains(transientType) { return .transient }
@@ -60,8 +67,8 @@ enum PrivacyFilter {
         if policy.ignoresConcealed, types.contains(concealedType) || !types.isDisjoint(with: legacyConcealedTypes) {
             return .concealed
         }
-        if let sourceBundleID, policy.ignoredBundleIDs.contains(sourceBundleID) {
-            return .ignoredApp(sourceBundleID)
+        if let ignored = sourceBundleIDs.first(where: policy.ignoredBundleIDs.contains) {
+            return .ignoredApp(ignored)
         }
         return nil
     }

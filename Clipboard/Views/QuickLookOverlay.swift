@@ -5,8 +5,11 @@ struct QuickLookOverlay: View {
     @Environment(\.palette) private var palette
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hasAppeared = false
+    @State private var fullText: String?
     let clip: ClipSnapshot
     let now: Date
+    /// Loads the full payload; snapshots only carry a 2,000-character preview.
+    let loadPayload: (ClipSnapshot.ID) async -> ClipPayload?
     let onCopy: () -> Void
     let onTogglePin: () -> Void
     let onClose: () -> Void
@@ -19,13 +22,22 @@ struct QuickLookOverlay: View {
                 .onTapGesture(perform: onClose)
                 .accessibilityHidden(true)
 
-            PreviewCard(clip: clip, now: now, onCopy: onCopy, onTogglePin: onTogglePin, onClose: onClose)
+            PreviewCard(clip: clip, fullText: fullText, now: now, onCopy: onCopy, onTogglePin: onTogglePin, onClose: onClose)
+                // A fresh identity per item, so no state (icons, scroll) leaks between items.
+                .id(clip.id)
                 .padding(26)
                 .scaleEffect(hasAppeared || reduceMotion ? 1 : 0.94)
                 .opacity(hasAppeared ? 1 : 0)
         }
         .onAppear {
             withAnimation(Motion.previewOpen) { hasAppeared = true }
+        }
+        .task(id: clip.id) {
+            fullText = nil
+            guard case .text(let text) = clip.content, text.preview.count >= ClipContent.Text.previewLimit,
+                  case .text(let full)? = await loadPayload(clip.id)
+            else { return }
+            fullText = full
         }
         .accessibilityIdentifier("quickLook")
     }
@@ -34,6 +46,7 @@ struct QuickLookOverlay: View {
 private struct PreviewCard: View {
     @Environment(\.palette) private var palette
     let clip: ClipSnapshot
+    let fullText: String?
     let now: Date
     let onCopy: () -> Void
     let onTogglePin: () -> Void
@@ -45,7 +58,7 @@ private struct PreviewCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PreviewMedia(clip: clip)
+            PreviewMedia(clip: clip, fullText: fullText)
             VStack(spacing: 14) {
                 meta
                 buttons
@@ -153,6 +166,7 @@ private struct PreviewButton<Label: View>: View {
 private struct PreviewMedia: View {
     @Environment(\.palette) private var palette
     let clip: ClipSnapshot
+    let fullText: String?
 
     var body: some View {
         switch clip.content {
@@ -162,7 +176,7 @@ private struct PreviewMedia: View {
                 .frame(maxWidth: .infinity)
 
         case .text(let text):
-            PreviewText(text: text)
+            PreviewText(text: text, fullText: fullText)
 
         case .link(let link):
             HStack(spacing: 12) {
@@ -207,17 +221,35 @@ private struct PreviewText: View {
     @Environment(\.palette) private var palette
     @State private var contentHeight: CGFloat?
     let text: ClipContent.Text
+    let fullText: String?
+
+    /// Enough for any realistic preview while keeping layout fast.
+    private static let displayLimit = 100_000
+
+    private var displayed: (text: String, isTruncated: Bool) {
+        let source = fullText ?? text.preview
+        guard source.count > Self.displayLimit else { return (source, false) }
+        return (String(source.prefix(Self.displayLimit)), true)
+    }
 
     var body: some View {
+        let displayed = displayed
         ScrollView {
-            Text(text.preview)
-                .textStyle(text.isCode ? Typography.previewCode : Typography.previewText)
-                .foregroundStyle(palette.text)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(EdgeInsets(top: 22, leading: 22, bottom: 6, trailing: 22))
-                .onGeometryChange(for: CGFloat.self, of: \.size.height) { contentHeight = $0 }
+            VStack(alignment: .leading, spacing: 10) {
+                Text(displayed.text)
+                    .textStyle(text.isCode ? Typography.previewCode : Typography.previewText)
+                    .foregroundStyle(palette.text)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                if displayed.isTruncated {
+                    Text("Showing the first \(Self.displayLimit.formatted()) characters. Copy to get everything.")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(palette.textFaint)
+                }
+            }
+            .padding(EdgeInsets(top: 22, leading: 22, bottom: 6, trailing: 22))
+            .onGeometryChange(for: CGFloat.self, of: \.size.height) { contentHeight = $0 }
         }
         .scrollBounceBehavior(.basedOnSize)
         .frame(height: min(contentHeight ?? Metrics.Preview.textMaxHeight, Metrics.Preview.textMaxHeight))
