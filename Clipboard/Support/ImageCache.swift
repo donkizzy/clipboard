@@ -31,6 +31,10 @@ final class ImageCache {
         return image
     }
 
+    func removeAll() {
+        cache.removeAllObjects()
+    }
+
     private func key(_ url: URL, _ maxPixelSize: Int) -> NSString {
         "\(maxPixelSize)|\(url.path(percentEncoded: false))" as NSString
     }

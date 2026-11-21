@@ -7,7 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         environment.start()
         #if DEBUG
-        DebugScenario.apply(to: environment.panelModel)
+        DebugScenario.apply(to: environment)
         #endif
     }
 }

@@ -39,7 +39,7 @@ actor HistoryDatabase: ModelActor {
     // MARK: Writes
 
     enum IngestResult: Equatable, Sendable {
-        case inserted
+        case inserted(UUID)
         /// The content already existed; that item moved to the top.
         case bumped(UUID)
     }
@@ -69,7 +69,15 @@ actor HistoryDatabase: ModelActor {
             throw error
         }
         try enforceRetention(limit: retentionLimit)
-        return .inserted
+        return .inserted(clip.id)
+    }
+
+    /// Records a fetched page title and favicon for a link.
+    func updateLinkMetadata(for id: UUID, title: String?, faviconFileName: String?) throws {
+        guard let item = try item(id) else { return }
+        if let title { item.linkTitle = title }
+        if let faviconFileName { item.faviconFileName = faviconFileName }
+        try context.save()
     }
 
     func setPinned(_ isPinned: Bool, for id: UUID) throws {

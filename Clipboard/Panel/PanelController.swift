@@ -32,6 +32,9 @@ final class PanelController {
     private var keyMonitor: Any?
     private var dismissTask: Task<Void, Never>?
 
+    /// Opens the Settings window (⌘, in the panel).
+    var openSettings: (() -> Void)?
+
     /// The app that was frontmost when the panel opened; paste goes back here.
     private(set) var previousApp: NSRunningApplication?
 
@@ -158,6 +161,8 @@ final class PanelController {
             }
         case .close:
             hide()
+        case .openSettings:
+            openSettings?()
         case .focusSearch:
             searchFocus.focus()
         case .focusResults:

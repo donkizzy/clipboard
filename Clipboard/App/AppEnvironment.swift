@@ -10,6 +10,10 @@ final class AppEnvironment {
     let panelController: PanelController
     let onboarding = AccessibilityOnboarding()
     private let isDemo: Bool
+    private var settingsWindow: SettingsWindowController?
+
+    /// False in demo mode, which never records the real clipboard.
+    var capturesClipboard: Bool { capture != nil }
 
     /// `nil` in demo mode, which never records the real clipboard.
     private(set) var capture: CaptureService?
@@ -31,6 +35,10 @@ final class AppEnvironment {
             )
             store = history
             capture = CaptureService(store: history, preferences: preferences)
+            let preferences = preferences
+            history.linkMetadata = LinkMetadataService(images: ImageStore(paths: paths)) {
+                preferences.fetchesLinkPreviews
+            }
         }
 
         panelModel = PanelModel(store: store, preferences: preferences)
@@ -39,6 +47,36 @@ final class AppEnvironment {
             pasteService: PasteService(ownWrites: capture?.ownWrites),
             onboarding: onboarding
         )
+        panelController.openSettings = { [weak self] in self?.showSettings() }
+    }
+
+    func showSettings(tab: SettingsTab? = nil) {
+        panelController.hide()
+        let settings = settingsWindow ?? SettingsWindowController(
+            preferences: preferences,
+            actions: SettingsActions(
+                showAccessibilityOnboarding: { [weak self] in self?.onboarding.present() },
+                clearHistory: { [weak self] in self?.confirmClearHistory() }
+            )
+        )
+        settingsWindow = settings
+        settings.show(tab: tab)
+    }
+
+    /// Asks before clearing; pinned items are always kept.
+    func confirmClearHistory() {
+        panelController.hide()
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.messageText = "Clear clipboard history?"
+        alert.informativeText = "All items except pinned ones will be removed. This can't be undone."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Clear History")
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons.first?.hasDestructiveAction = true
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        store.clear(keepPinned: true)
+        ImageCache.shared.removeAll()
     }
 
     func start() {

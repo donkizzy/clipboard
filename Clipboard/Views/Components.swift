@@ -30,42 +30,87 @@ struct Hairline: View {
     }
 }
 
-/// Rounded-square badge for the source app: its tint plus initial.
+/// Source app badge: the real app icon, or a tinted square with the app's
+/// initial when the app isn't installed (or while the icon loads).
 struct AppBadge: View {
     let clip: ClipSnapshot
     let size: CGFloat
     let radius: CGFloat
     let fontSize: CGFloat
 
+    @State private var icon: NSImage?
+
+    private var bundleID: String? { clip.source?.bundleID }
+
     var body: some View {
-        RoundedRectangle(cornerRadius: radius, style: .continuous)
-            .fill(clip.source?.tint?.color ?? Color(hex: 0x888888))
-            .frame(width: size, height: size)
-            .overlay {
-                Text(clip.sourceInitial)
-                    .font(.system(size: fontSize, weight: .bold))
-                    .foregroundStyle(.white)
+        Group {
+            if let icon = icon ?? bundleID.flatMap(AppIconCache.shared.cachedIcon) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .interpolation(.high)
+                    // App icons include transparent margins; scale up slightly to match the badge size.
+                    .frame(width: size * 1.2, height: size * 1.2)
+                    .frame(width: size, height: size)
+            } else {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(clip.source?.tint?.color ?? Color(hex: 0x888888))
+                    .frame(width: size, height: size)
+                    .overlay {
+                        Text(clip.sourceInitial)
+                            .font(.system(size: fontSize, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
             }
-            .accessibilityHidden(true)
+        }
+        .task(id: bundleID) {
+            guard let bundleID else { return }
+            icon = await AppIconCache.shared.icon(for: bundleID)
+        }
+        .accessibilityHidden(true)
     }
 }
 
-/// Placeholder favicon: the link's gradient with the domain's initial.
+/// The site's favicon on a light tile, or (until it's fetched, or if there
+/// is none) the domain gradient with the domain's initial.
 struct FaviconTile: View {
     let link: ClipContent.Link
     let size: CGFloat
     let radius: CGFloat
     let style: TextStyle
 
+    @State private var favicon: NSImage?
+
+    private static let pixelSize = 64
+
     var body: some View {
-        RoundedRectangle(cornerRadius: radius, style: .continuous)
-            .fill(link.resolvedArtwork.linearGradient)
-            .frame(width: size, height: size)
-            .overlay {
-                Text(link.initial)
-                    .textStyle(style)
-                    .foregroundStyle(.white)
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        let shown = favicon ?? link.faviconURL.flatMap { ImageCache.shared.cachedImage(at: $0, maxPixelSize: Self.pixelSize) }
+        Group {
+            if let shown {
+                shape.fill(Color.white)
+                    .overlay {
+                        Image(nsImage: shown)
+                            .resizable()
+                            .interpolation(.high)
+                            .scaledToFit()
+                            .padding(size * 0.14)
+                    }
+                    .overlay { shape.strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5) }
+            } else {
+                shape.fill(link.resolvedArtwork.linearGradient)
+                    .overlay {
+                        Text(link.initial)
+                            .textStyle(style)
+                            .foregroundStyle(.white)
+                    }
             }
+        }
+        .frame(width: size, height: size)
+        .clipShape(shape)
+        .task(id: link.faviconURL) {
+            guard let url = link.faviconURL else { return }
+            favicon = await ImageCache.shared.image(at: url, maxPixelSize: Self.pixelSize)
+        }
     }
 }
 

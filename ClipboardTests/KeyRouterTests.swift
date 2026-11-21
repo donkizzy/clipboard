@@ -135,6 +135,12 @@ struct KeyRouterTests {
         #expect(route(press(0, "a", .command), context(focused: false)) == nil)
     }
 
+    @Test("⌘, opens Settings and ⌘W closes")
+    func windowShortcuts() {
+        #expect(route(press(43, ",", .command), context()) == .openSettings)
+        #expect(route(press(13, "w", .command), context()) == .close)
+    }
+
     @Test("⌘⇧V passes through to the global hotkey")
     func hotkeyPassesThrough() {
         #expect(route(press(9, "v", [.command, .shift]), context(focused: true)) == nil)

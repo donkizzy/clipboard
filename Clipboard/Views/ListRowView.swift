@@ -18,7 +18,7 @@ struct ListRowView: View {
         HStack(spacing: 12) {
             ListThumb(clip: clip)
             VStack(alignment: .leading, spacing: 2) {
-                Text(clip.title)
+                Text(clip.displayTitle)
                     .textStyle(Typography.listTitle)
                     .foregroundStyle(palette.text)
                 Text(clip.subtitle)

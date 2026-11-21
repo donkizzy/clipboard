@@ -56,6 +56,18 @@ enum Thumbnailer {
         return pngData(thumbnail)
     }
 
+    /// Downsamples to fit `maxPixelSize` on the long edge and encodes as PNG.
+    static func downsampledPNG(from data: Data, maxPixelSize: Int) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(1, maxPixelSize),
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return pngData(image)
+    }
+
     /// Re-encodes any ImageIO-readable data as PNG (used for TIFF, which is huge).
     static func pngData(from data: Data) -> Data? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
@@ -110,6 +122,7 @@ struct ImageStore: Sendable {
 
     func imageURL(_ fileName: String) -> URL { paths.imagesDirectory.appending(path: fileName) }
     func thumbnailURL(_ fileName: String) -> URL { paths.thumbnailsDirectory.appending(path: fileName) }
+    func faviconURL(_ fileName: String) -> URL { paths.faviconsDirectory.appending(path: fileName) }
 
     func remove(fileName: String?, thumbnailFileName: String?) {
         let fileManager = FileManager.default

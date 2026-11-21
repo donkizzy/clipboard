@@ -19,6 +19,9 @@ final class HistoryStore: ClipStore {
     /// Newest unpinned items to keep; `nil` is unlimited.
     @ObservationIgnored var retentionLimit: Int?
 
+    /// Fetches page titles and favicons for new links; `nil` disables it.
+    @ObservationIgnored var linkMetadata: LinkMetadataService?
+
     private typealias Operation = @Sendable (HistoryDatabase) async throws -> Void
 
     @ObservationIgnored private let operations: AsyncStream<Operation>.Continuation
@@ -79,10 +82,27 @@ final class HistoryStore: ClipStore {
 
     func ingest(_ clip: PreparedClip) {
         let limit = retentionLimit
-        enqueue { try await $0.ingest(clip, retentionLimit: limit) }
+        enqueue { [weak self] db in
+            let result = try await db.ingest(clip, retentionLimit: limit)
+            if case .inserted(let id) = result, let url = clip.url {
+                await self?.fetchLinkMetadata(for: id, url: url)
+            }
+        }
     }
 
-    func clear(keepPinned: Bool = true) {
+    /// Fetches a new link's title and favicon in the background, then
+    /// stores them through the write queue like any other change.
+    private func fetchLinkMetadata(for id: UUID, url: URL) {
+        guard let linkMetadata else { return }
+        Task { [weak self] in
+            guard let metadata = await linkMetadata.fetch(url) else { return }
+            self?.enqueue { db in
+                try await db.updateLinkMetadata(for: id, title: metadata.title, faviconFileName: metadata.faviconFileName)
+            }
+        }
+    }
+
+    func clear(keepPinned: Bool) {
         snapshots.removeAll { !keepPinned || !$0.isPinned }
         enqueue { try await $0.clear(keepPinned: keepPinned) }
     }

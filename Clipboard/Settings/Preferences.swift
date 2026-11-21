@@ -19,6 +19,7 @@ final class Preferences {
         static let historyLimit = "historyLimit"
         static let ignoredBundleIDs = "ignoredBundleIDs"
         static let ignoresConcealed = "ignoresConcealed"
+        static let fetchesLinkPreviews = "fetchesLinkPreviews"
     }
 
     /// History limit choices offered in Settings; `nil` is unlimited.
@@ -54,6 +55,11 @@ final class Preferences {
         didSet { defaults.set(ignoresConcealed, forKey: Key.ignoresConcealed) }
     }
 
+    /// Fetch page titles and favicons for copied links (network access).
+    var fetchesLinkPreviews: Bool {
+        didSet { defaults.set(fetchesLinkPreviews, forKey: Key.fetchesLinkPreviews) }
+    }
+
     /// Temporarily stop recording (menu bar "Pause Capture"). Not persisted:
     /// capture always resumes on relaunch, so it can't be forgotten off.
     var isCapturePaused = false
@@ -76,5 +82,6 @@ final class Preferences {
         ignoredBundleIDs = (defaults.stringArray(forKey: Key.ignoredBundleIDs)).map(Set.init)
             ?? CapturePolicy.defaultIgnoredBundleIDs
         ignoresConcealed = defaults.object(forKey: Key.ignoresConcealed) as? Bool ?? true
+        fetchesLinkPreviews = defaults.object(forKey: Key.fetchesLinkPreviews) as? Bool ?? true
     }
 }

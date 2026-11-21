@@ -13,6 +13,7 @@ enum KeyCommand: Equatable, Sendable {
     /// Close preview → clear search → close panel, in that order.
     case escape
     case close
+    case openSettings
     case focusSearch
     case focusResults
     /// A printable keystroke while the results have focus: refocus the
@@ -121,6 +122,7 @@ enum KeyRouter {
         switch press.characters.lowercased() {
         case "p": return .togglePin
         case "w": return .close
+        case ",": return .openSettings
         case "1", "2", "3", "4", "5", "6":
             let index = Int(press.characters)! - 1
             return .selectFilter(HistoryFilter.allCases[index])

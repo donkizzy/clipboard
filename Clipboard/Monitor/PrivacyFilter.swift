@@ -17,6 +17,16 @@ struct CapturePolicy: Sendable, Equatable {
         "com.apple.keychainaccess",
         "com.apple.Passwords",
     ]
+
+    /// Display names for the defaults, for when an app isn't installed.
+    static let knownAppNames: [String: String] = [
+        "com.1password.1password": "1Password",
+        "com.agilebits.onepassword7": "1Password 7",
+        "com.agilebits.onepassword-osx": "1Password 6",
+        "com.bitwarden.desktop": "Bitwarden",
+        "com.apple.keychainaccess": "Keychain Access",
+        "com.apple.Passwords": "Passwords",
+    ]
 }
 
 /// Implements the nspasteboard.org conventions for marking sensitive or

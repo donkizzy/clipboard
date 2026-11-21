@@ -30,6 +30,8 @@ final class ClipItem {
     // Link
     var urlString: String? = nil
     var linkTitle: String? = nil
+    /// Shared per host, in `favicons/`.
+    var faviconFileName: String? = nil
 
     // Image
     var pixelWidth: Int? = nil
@@ -114,7 +116,7 @@ final class ClipItem {
             return .text(.init(textPreview ?? "", isCode: isCode))
         case .link:
             guard let url = urlString.flatMap(URL.init(string:)) else { return nil }
-            return .link(.init(url: url, title: linkTitle))
+            return .link(.init(url: url, title: linkTitle, faviconURL: faviconFileName.map(images.faviconURL)))
         case .image:
             return .image(.init(
                 pixelWidth: pixelWidth ?? 0,

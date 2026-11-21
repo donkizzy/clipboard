@@ -8,7 +8,8 @@ import Foundation
 /// stored preferences through the `NSArgumentDomain`.
 @MainActor
 enum DebugScenario {
-    static func apply(to model: PanelModel, arguments: [String] = ProcessInfo.processInfo.arguments) {
+    static func apply(to environment: AppEnvironment, arguments: [String] = ProcessInfo.processInfo.arguments) {
+        let model = environment.panelModel
         func value(after flag: String) -> String? {
             guard let index = arguments.firstIndex(of: flag), arguments.indices.contains(index + 1) else { return nil }
             return arguments[index + 1]
@@ -32,6 +33,12 @@ enum DebugScenario {
             }
         case "empty":
             model.query = "no such item"
+        case "settings-general":
+            environment.showSettings(tab: .general)
+        case "settings-privacy":
+            environment.showSettings(tab: .privacy)
+        case "settings-about":
+            environment.showSettings(tab: .about)
         default:
             break
         }

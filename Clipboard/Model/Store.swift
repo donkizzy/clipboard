@@ -13,6 +13,8 @@ protocol ClipStore: AnyObject, Observable {
 
     func setPinned(_ isPinned: Bool, for id: UUID)
     func delete(_ id: UUID)
+    /// Removes history; pinned items survive when `keepPinned` is true.
+    func clear(keepPinned: Bool)
 
     /// The full content for copy/paste (snapshots only carry previews).
     func payload(for id: UUID) async -> ClipPayload?
@@ -35,6 +37,10 @@ final class InMemoryClipStore: ClipStore {
 
     func delete(_ id: UUID) {
         snapshots.removeAll { $0.id == id }
+    }
+
+    func clear(keepPinned: Bool) {
+        snapshots.removeAll { !keepPinned || !$0.isPinned }
     }
 
     func payload(for id: UUID) async -> ClipPayload? {

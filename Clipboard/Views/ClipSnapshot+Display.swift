@@ -2,6 +2,12 @@ import Foundation
 
 /// Presentation strings shared by cards, rows, Quick Look and VoiceOver.
 extension ClipSnapshot {
+    /// The title to show: a link's fetched page title when available.
+    var displayTitle: String {
+        if case .link(let link) = content, let pageTitle = link.title { return pageTitle }
+        return title
+    }
+
     /// Text shown under the title in list rows.
     var subtitle: String {
         switch content {
@@ -34,7 +40,7 @@ extension ClipSnapshot {
     /// VoiceOver label, e.g. "Link, Framer Motion — layout animations, from
     /// Safari, 2 minutes ago, pinned".
     func accessibilityDescription(now: Date) -> String {
-        var parts = [typeBadge, title, "from \(sourceName)", RelativeTime.spoken(createdAt, now: now)]
+        var parts = [typeBadge, displayTitle, "from \(sourceName)", RelativeTime.spoken(createdAt, now: now)]
         if isPinned { parts.append("pinned") }
         return parts.joined(separator: ", ")
     }
