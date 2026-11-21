@@ -1,0 +1,15 @@
+// Settings shared by every configuration.
+//
+// Signing defaults to "Sign to Run Locally" (ad-hoc) so a fresh clone builds
+// with no Apple Developer account. To keep the Accessibility permission across
+// rebuilds, copy Local.xcconfig.example to Local.xcconfig (git-ignored) and set
+// your own DEVELOPMENT_TEAM there.
+
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+
+CODE_SIGN_STYLE = Automatic
+CODE_SIGN_IDENTITY = -
+DEVELOPMENT_TEAM =
+
+#include? "Local.xcconfig"
