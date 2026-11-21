@@ -13,7 +13,7 @@ struct RootView: View {
         let scheme = resolvedScheme
         let palette = Palette.resolve(scheme, reduceTransparency: reduceTransparency)
         let shape = RoundedRectangle(cornerRadius: Metrics.Panel.radius, style: .continuous)
-        let actions = ClipActions(model: model)
+        let actions = ClipActions(model: model, focus: searchFocus)
 
         VStack(spacing: 0) {
             SearchBar(query: $model.query, focus: searchFocus)

@@ -17,12 +17,39 @@ final class SearchFocus {
         return field.window?.firstResponder === editor
     }
 
+    /// True while an input method is composing (e.g. Japanese or emoji entry).
+    var hasMarkedText: Bool {
+        (field?.currentEditor() as? NSTextView)?.hasMarkedText() ?? false
+    }
+
     /// Focuses the field with the caret after the last character.
     func focus() {
         guard let field, let window = field.window else { return }
         if !isFocused { window.makeFirstResponder(field) }
         if let editor = field.currentEditor() {
             editor.selectedRange = NSRange(location: (editor.string as NSString).length, length: 0)
+        }
+    }
+
+    /// Focuses the field and types `text` at the end, as if the user had
+    /// typed it there. Goes through the field editor, so the binding and
+    /// undo stack update exactly as for real typing.
+    func insert(_ text: String) {
+        focus()
+        guard let editor = field?.currentEditor() as? NSTextView else { return }
+        editor.insertText(text, replacementRange: editor.selectedRange())
+    }
+
+    /// Sends a standard editing action (⌘A, ⌘C…) to the field editor.
+    func perform(_ edit: KeyCommand.TextEdit) {
+        guard isFocused, let editor = field?.currentEditor() as? NSTextView else { return }
+        switch edit {
+        case .selectAll: editor.selectAll(nil)
+        case .copy: editor.copy(nil)
+        case .cut: editor.cut(nil)
+        case .paste: editor.pasteAsPlainText(nil)
+        case .undo: editor.undoManager?.undo()
+        case .redo: editor.undoManager?.redo()
         }
     }
 

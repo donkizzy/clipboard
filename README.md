@@ -6,8 +6,8 @@ keyboard-first navigation.
 
 Swift 6 · SwiftUI + AppKit · macOS 14 Sonoma or later · no web views.
 
-> **Status:** in development, milestone 1 of 6 (panel and visual design on demo data).
-> Clipboard capture, persistence, paste-back and Settings are still to come.
+> **Status:** in development, milestone 2 of 6 (panel, visual design and keyboard navigation on
+> demo data). Clipboard capture, persistence, paste-back and Settings are still to come.
 
 ## Build and run
 
@@ -27,8 +27,14 @@ reopened from the menu bar extra.
 
 A fresh clone builds with ad-hoc signing ("Sign to Run Locally"). Paste-back needs the Accessibility
 permission, and macOS revokes it whenever an ad-hoc signed binary changes. To keep it across
-rebuilds, copy `Config/Local.xcconfig.example` to `Config/Local.xcconfig` (git-ignored) and set your
-`DEVELOPMENT_TEAM`.
+rebuilds, give the build a stable identity in `Config/Local.xcconfig` (git-ignored). Either:
+
+- run `./scripts/make-signing-cert.sh`, which creates a self-signed code-signing certificate in your
+  login keychain and writes the config for you (no Apple Developer account needed), or
+- copy `Config/Local.xcconfig.example` and set your `DEVELOPMENT_TEAM`.
+
+Debug builds carry a `disable-library-validation` entitlement so the Hardened Runtime test host can
+load the unit-test bundle when signed without a Team ID. Release builds don't.
 
 ### Demo mode and debug scenarios
 
@@ -42,13 +48,32 @@ Clipboard.app/Contents/MacOS/Clipboard --demo -layout list -appearance light --s
 
 `--scenario` takes `preview`, `toast` or `empty`. `--select N` and `--query TEXT` are also available.
 
+## Keyboard
+
+| Key | Action |
+|---|---|
+| ⌘⇧V | Toggle the panel (global; arrives in M4) |
+| ↑ ↓ | Move the selection |
+| ← → | Move the selection in the card layout, when the search is empty or unfocused |
+| ↵ / ⌘↵ | Copy / paste into the previous app |
+| Space | Toggle Quick Look (when the search isn't focused) |
+| ⌫ | Delete the selected item (when the search isn't focused) |
+| ⌘P | Pin or unpin |
+| ⌘1…⌘6 | All, Text, Links, Images, Files, Pinned |
+| Tab | Switch focus between search and results |
+| Esc | Close the preview, then clear the search, then close the panel |
+
+The search field has focus when the panel opens. Moving the selection hands focus to the results,
+so Space and ⌫ act on the selection. Typing any character puts focus back in the search field and
+adds the character there. The whole map is one pure function (`KeyRouter`), covered by unit tests.
+
 ## Architecture
 
 | Folder | Responsibility |
 |---|---|
 | `App/` | Entry point, menu bar extra, composition root (`AppEnvironment`) |
 | `Panel/` | `FloatingPanel` (non-activating `NSPanel`), `PanelController` (show/hide/position), vibrancy |
-| `State/` | `PanelModel`: query, filter, selection, Quick Look and toasts (UI-framework agnostic) |
+| `State/` | `PanelModel` (query, filter, selection, Quick Look, toasts), `KeyRouter`, scroll-into-view maths |
 | `Model/` | `ClipSnapshot` (immutable, `Sendable`), `HistoryQuery` (pure search/filter), `ClipStore` |
 | `Views/` | SwiftUI views for every part of the panel |
 | `Theme/` | Design tokens (colours, metrics, typography, motion), SVG-ported glyphs, CSS-accurate shadows |

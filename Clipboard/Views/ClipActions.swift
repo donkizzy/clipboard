@@ -9,9 +9,17 @@ struct ClipActions {
     let togglePin: (ClipSnapshot.ID) -> Void
     let delete: (ClipSnapshot.ID) -> Void
 
-    init(model: PanelModel) {
-        select = { [weak model] in model?.select($0) }
-        openPreview = { [weak model] in model?.openPreview($0) }
+    /// Clicking an item moves focus to the results (as clicking outside a
+    /// text field does on the web), so Space and ⌫ then act on it.
+    init(model: PanelModel, focus: SearchFocus) {
+        select = { [weak model, weak focus] in
+            model?.select($0)
+            focus?.blur()
+        }
+        openPreview = { [weak model, weak focus] in
+            model?.openPreview($0)
+            focus?.blur()
+        }
         togglePin = { [weak model] in model?.togglePin($0) }
         delete = { [weak model] in model?.delete($0) }
     }

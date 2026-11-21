@@ -8,7 +8,12 @@ struct CardRow: View {
     let actions: ClipActions
 
     var body: some View {
-        ScrollView(.horizontal) {
+        SelectionScrollView(
+            axis: .horizontal,
+            metrics: .cards,
+            selectedIndex: selectedIndex,
+            selectedID: clips.indices.contains(selectedIndex) ? clips[selectedIndex].id : nil
+        ) {
             LazyHStack(spacing: Metrics.Card.rowSpacing) {
                 ForEach(Array(clips.enumerated()), id: \.element.id) { index, clip in
                     CardView(clip: clip, isSelected: index == selectedIndex, now: now, actions: actions)
@@ -17,7 +22,6 @@ struct CardRow: View {
             }
             .padding(Metrics.Card.rowPadding)
         }
-        .scrollIndicators(.automatic)
         .frame(height: Metrics.Card.rowHeight)
         .accessibilityIdentifier("cardRow")
     }

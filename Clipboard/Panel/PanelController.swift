@@ -26,6 +26,8 @@ final class PanelController {
     private let searchFocus = SearchFocus()
     private let panel = FloatingPanel()
     private var resignObserver: NSObjectProtocol?
+    private var keyMonitor: Any?
+    private var dismissTask: Task<Void, Never>?
 
     /// The app that was frontmost when the panel opened; paste goes back here.
     private(set) var previousApp: NSRunningApplication?
@@ -42,6 +44,14 @@ final class PanelController {
         hostingView.sizingOptions = []
         panel.contentView = hostingView
         panel.onClickOutsidePanel = { [weak self] in self?.hide() }
+        model.onDismissRequest = { [weak self] delay in self?.hide(after: delay) }
+
+        // A local monitor sees key events before the field editor and before
+        // key-equivalent handling, so the panel's shortcuts always win.
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let handled = MainActor.assumeIsolated { self?.handleKeyDown(event) ?? false }
+            return handled ? nil : event
+        }
 
         resignObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification,
@@ -58,6 +68,7 @@ final class PanelController {
 
     func show() {
         guard !isVisible else { return }
+        dismissTask?.cancel()
         rememberFrontmostApp()
         position(on: screenUnderMouse())
         model.panelWillShow()
@@ -72,9 +83,79 @@ final class PanelController {
     }
 
     func hide() {
+        dismissTask?.cancel()
         guard isVisible else { return }
         panel.orderOut(nil)
         model.panelDidHide()
+    }
+
+    /// Hides after `delay`, unless the panel is hidden or reopened meanwhile.
+    func hide(after delay: Duration) {
+        dismissTask?.cancel()
+        dismissTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            self?.hide()
+        }
+    }
+
+    // MARK: Keyboard
+
+    private func handleKeyDown(_ event: NSEvent) -> Bool {
+        guard event.window === panel, panel.isKeyWindow else { return false }
+        // Let an input method finish composing (Enter/Esc/arrows belong to it).
+        guard !searchFocus.hasMarkedText else { return false }
+
+        let context = KeyContext(
+            isSearchFocused: searchFocus.isFocused,
+            isQueryEmpty: model.query.isEmpty,
+            layout: model.layout,
+            isPreviewOpen: model.isPreviewOpen
+        )
+        guard let command = KeyRouter.command(for: KeyPress(event), in: context) else { return false }
+        perform(command)
+        return true
+    }
+
+    private func perform(_ command: KeyCommand) {
+        switch command {
+        case .moveSelection(let delta):
+            model.moveSelection(by: delta)
+            searchFocus.blur()
+        case .copy:
+            model.copySelected()
+        case .paste:
+            model.pasteSelected()
+        case .togglePreview:
+            model.togglePreview()
+            searchFocus.blur()
+        case .deleteSelected:
+            model.delete()
+        case .togglePin:
+            model.togglePin()
+        case .selectFilter(let filter):
+            model.setFilter(filter)
+        case .escape:
+            let wasPreviewing = model.isPreviewOpen
+            if !model.handleEscape() {
+                hide()
+            } else if !wasPreviewing {
+                searchFocus.focus() // search was just cleared: ready to type again
+            }
+        case .close:
+            hide()
+        case .focusSearch:
+            searchFocus.focus()
+        case .focusResults:
+            searchFocus.blur()
+        case .typeIntoSearch(let text):
+            model.closePreview()
+            searchFocus.insert(text)
+        case .edit(let edit):
+            searchFocus.perform(edit)
+        case .ignore:
+            break
+        }
     }
 
     // MARK: Private
@@ -111,6 +192,23 @@ final class PanelController {
             y: (panelTop + margins.top - size.height).rounded()
         )
         panel.setFrame(NSRect(origin: origin, size: size), display: false)
+    }
+}
+
+private extension KeyPress {
+    init(_ event: NSEvent) {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        var modifiers: Modifiers = []
+        if flags.contains(.command) { modifiers.insert(.command) }
+        if flags.contains(.shift) { modifiers.insert(.shift) }
+        if flags.contains(.option) { modifiers.insert(.option) }
+        if flags.contains(.control) { modifiers.insert(.control) }
+        self.init(
+            keyCode: event.keyCode,
+            characters: event.charactersIgnoringModifiers ?? "",
+            typedCharacters: event.characters ?? "",
+            modifiers: modifiers
+        )
     }
 }
 

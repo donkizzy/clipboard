@@ -43,6 +43,9 @@ targets:
         PRODUCT_NAME: Clipboard
         ENABLE_HARDENED_RUNTIME: YES
         COMBINE_HIDPI_IMAGES: YES
+      configs:
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: Clipboard/App/Clipboard-Debug.entitlements
 
   ClipboardTests:
     type: bundle.unit-test

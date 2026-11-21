@@ -1,5 +1,12 @@
-// Copy to Config/Local.xcconfig (git-ignored) and fill in your team.
-// A stable signature keeps macOS from revoking the Accessibility permission
-// every time you rebuild.
-DEVELOPMENT_TEAM = ABCDE12345
-CODE_SIGN_IDENTITY = Apple Development
+// Copy to Config/Local.xcconfig (git-ignored). A stable signature keeps macOS
+// from revoking the Accessibility permission every time you rebuild.
+
+// Option A — Apple Developer team:
+// DEVELOPMENT_TEAM = ABCDE12345
+// CODE_SIGN_IDENTITY = Apple Development
+
+// Option B — self-signed certificate (see scripts/make-signing-cert.sh):
+// CODE_SIGN_STYLE = Manual
+// CODE_SIGN_IDENTITY = Clipboard Local Signing
+// DEVELOPMENT_TEAM =
+// OTHER_CODE_SIGN_FLAGS = --timestamp=none

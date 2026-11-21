@@ -57,6 +57,9 @@ final class PanelModel {
     /// Reference time for relative timestamps; ticks every 30s while open.
     private(set) var now = Date.now
 
+    /// Asks the panel to close after a delay (e.g. once "Copied" has been seen).
+    @ObservationIgnored var onDismissRequest: ((Duration) -> Void)?
+
     @ObservationIgnored private var toastTask: Task<Void, Never>?
     @ObservationIgnored private var clockTask: Task<Void, Never>?
 
@@ -80,9 +83,15 @@ final class PanelModel {
 
     // MARK: Lifecycle
 
+    /// Every open starts fresh: empty search, newest item selected.
+    /// The filter and layout persist between opens.
     func panelWillShow() {
         now = .now
+        query = ""
+        isPreviewOpen = false
+        toast = nil
         refresh()
+        selectedIndex = 0
         startClock()
     }
 
@@ -150,11 +159,38 @@ final class PanelModel {
         show(.deleted)
     }
 
-    /// Copies the selected item. Writing to the pasteboard arrives in M4.
+    /// Copies the selected item, confirms with a toast, then closes the panel.
+    /// Writing to the pasteboard arrives in M4.
     func copySelected() {
         guard selected != nil else { return }
         show(.copied)
+        onDismissRequest?(Self.dismissDelayAfterCopy)
     }
+
+    /// Pastes the selected item into the previous app. The real paste-back
+    /// arrives in M4; until then this only confirms.
+    func pasteSelected() {
+        guard selected != nil else { return }
+        show(.pasted)
+        onDismissRequest?(Self.dismissDelayAfterCopy)
+    }
+
+    /// Esc: close the preview, else clear the search. Returns `false` when
+    /// there was nothing left to back out of, meaning the panel should close.
+    func handleEscape() -> Bool {
+        if isPreviewOpen {
+            closePreview()
+            return true
+        }
+        if !query.isEmpty {
+            query = ""
+            return true
+        }
+        return false
+    }
+
+    /// Long enough to read the toast, short enough not to feel sluggish.
+    static let dismissDelayAfterCopy: Duration = .milliseconds(600)
 
     func toggleLayout() {
         preferences.layout = preferences.layout.toggled

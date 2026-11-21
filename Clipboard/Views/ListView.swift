@@ -8,7 +8,12 @@ struct ListView: View {
     let actions: ClipActions
 
     var body: some View {
-        ScrollView(.vertical) {
+        SelectionScrollView(
+            axis: .vertical,
+            metrics: .listRows,
+            selectedIndex: selectedIndex,
+            selectedID: clips.indices.contains(selectedIndex) ? clips[selectedIndex].id : nil
+        ) {
             LazyVStack(spacing: Metrics.List.spacing) {
                 ForEach(Array(clips.enumerated()), id: \.element.id) { index, clip in
                     ListRowView(clip: clip, isSelected: index == selectedIndex, now: now, actions: actions)
