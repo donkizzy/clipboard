@@ -8,6 +8,11 @@ options:
   developmentLanguage: en
   groupSortPosition: top
 
+packages:
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    exactVersion: 3.1.0
+
 configFiles:
   Debug: Config/Debug.xcconfig
   Release: Config/Release.xcconfig
@@ -28,6 +33,8 @@ targets:
     platform: macOS
     sources:
       - path: Clipboard
+    dependencies:
+      - package: KeyboardShortcuts
     info:
       path: Clipboard/App/Info.plist
       properties:

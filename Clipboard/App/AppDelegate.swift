@@ -6,9 +6,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         environment.start()
-        // Until the global hotkey lands (M4), open the panel at launch so the
-        // UI can be exercised; reopen it from the menu bar extra.
-        environment.panelController.show()
         #if DEBUG
         DebugScenario.apply(to: environment.panelModel)
         #endif

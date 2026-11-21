@@ -23,6 +23,9 @@ enum PanelGeometry {
 @MainActor
 final class PanelController {
     private let model: PanelModel
+    private let pasteService: PasteService
+    private let onboarding: AccessibilityOnboarding
+    private let toastWindow = ToastWindow()
     private let searchFocus = SearchFocus()
     private let panel = FloatingPanel()
     private var resignObserver: NSObjectProtocol?
@@ -34,8 +37,13 @@ final class PanelController {
 
     var isVisible: Bool { panel.isVisible }
 
-    init(model: PanelModel) {
+    /// Long enough to read "Copied", short enough not to feel sluggish.
+    static let dismissDelayAfterCopy: Duration = .milliseconds(600)
+
+    init(model: PanelModel, pasteService: PasteService, onboarding: AccessibilityOnboarding) {
         self.model = model
+        self.pasteService = pasteService
+        self.onboarding = onboarding
 
         let content = PanelWindowContent(model: model, searchFocus: searchFocus) { [weak panel] rect in
             panel?.panelRect = rect
@@ -44,7 +52,7 @@ final class PanelController {
         hostingView.sizingOptions = []
         panel.contentView = hostingView
         panel.onClickOutsidePanel = { [weak self] in self?.hide() }
-        model.onDismissRequest = { [weak self] delay in self?.hide(after: delay) }
+        model.actionHandler = self
 
         // A local monitor sees key events before the field editor and before
         // key-equivalent handling, so the panel's shortcuts always win.
@@ -71,6 +79,7 @@ final class PanelController {
         dismissTask?.cancel()
         rememberFrontmostApp()
         position(on: screenUnderMouse())
+        model.hotkeyLabel = HotkeyLabel.current
         model.panelWillShow()
 
         panel.orderFrontRegardless()
@@ -97,6 +106,11 @@ final class PanelController {
             guard !Task.isCancelled else { return }
             self?.hide()
         }
+    }
+
+    /// The visible panel's frame in screen coordinates.
+    private var panelScreenFrame: NSRect {
+        panel.convertToScreen(panel.panelRect.isEmpty ? panel.frame : panel.panelRect)
     }
 
     // MARK: Keyboard
@@ -192,6 +206,74 @@ final class PanelController {
             y: (panelTop + margins.top - size.height).rounded()
         )
         panel.setFrame(NSRect(origin: origin, size: size), display: false)
+    }
+}
+
+// MARK: - Copy and paste
+
+extension PanelController: PanelActionHandling {
+    /// ↵: write to the pasteboard, confirm, then close.
+    func copy(_ clip: ClipSnapshot) {
+        Task {
+            guard await write(clip) else { return }
+            model.show(.copied)
+            hide(after: Self.dismissDelayAfterCopy)
+        }
+    }
+
+    /// ⌘↵: write to the pasteboard, close, hand focus back to the previous
+    /// app and send it ⌘V. Without Accessibility this falls back to copy
+    /// and explains (once) how to enable paste.
+    func paste(_ clip: ClipSnapshot) {
+        Task {
+            guard await write(clip) else { return }
+            guard AccessibilityPermission.isGranted else {
+                model.show(.copied)
+                hide(after: Self.dismissDelayAfterCopy)
+                onboarding.presentIfNeeded()
+                return
+            }
+
+            let target = previousApp
+            let frame = panelScreenFrame
+            let scheme = resolvedScheme
+            hide()
+            await activate(target)
+            pasteService.sendPasteKeystroke()
+            toastWindow.show(.pasted(into: target?.localizedName), panelFrame: frame, scheme: scheme)
+        }
+    }
+
+    private func write(_ clip: ClipSnapshot) async -> Bool {
+        guard let payload = await model.store.payload(for: clip.id), await pasteService.write(payload) else {
+            Log.panel.error("Couldn't write item to the pasteboard")
+            model.show(.failed)
+            return false
+        }
+        return true
+    }
+
+    /// The panel never activates our app, so the previous app is normally
+    /// still active; this covers the case where it isn't (e.g. Settings was open).
+    private func activate(_ app: NSRunningApplication?) async {
+        guard let app, !app.isTerminated else { return }
+        if !app.isActive {
+            app.activate()
+            for _ in 0..<25 where !app.isActive {
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+        }
+        // Let the target's window become key again before the keystroke lands.
+        try? await Task.sleep(for: .milliseconds(40))
+    }
+
+    private var resolvedScheme: ColorScheme {
+        switch model.preferences.appearance {
+        case .dark: return .dark
+        case .light: return .light
+        case .system:
+            return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
+        }
     }
 }
 

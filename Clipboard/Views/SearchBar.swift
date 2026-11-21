@@ -64,7 +64,7 @@ struct SearchBar: View {
     @Environment(\.palette) private var palette
     @Binding var query: String
     let focus: SearchFocus
-    var shortcutLabel = "⌘⇧V"
+    var shortcutLabel: String?
 
     var body: some View {
         HStack(spacing: Metrics.SearchBar.spacing) {
@@ -82,14 +82,16 @@ struct SearchBar: View {
             .frame(maxWidth: .infinity)
             .frame(height: 23)
 
-            Text(shortcutLabel)
-                .textStyle(Typography.shortcutChip)
-                .foregroundStyle(palette.textDim)
-                .padding(.vertical, 4)
-                .padding(.horizontal, 8)
-                .background(palette.chip, in: RoundedRectangle(cornerRadius: Metrics.SearchBar.chipRadius, style: .continuous))
-                .fixedSize()
-                .accessibilityLabel("Shortcut: Command Shift V")
+            if let shortcutLabel {
+                Text(shortcutLabel)
+                    .textStyle(Typography.shortcutChip)
+                    .foregroundStyle(palette.textDim)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(palette.chip, in: RoundedRectangle(cornerRadius: Metrics.SearchBar.chipRadius, style: .continuous))
+                    .fixedSize()
+                    .accessibilityLabel("Open with \(shortcutLabel)")
+            }
         }
         .padding(Metrics.SearchBar.padding)
         .overlay(alignment: .bottom) { Hairline() }

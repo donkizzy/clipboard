@@ -12,8 +12,14 @@ struct ToastView: View {
                 .fill(toast.style.color)
                 .frame(width: 20, height: 20)
                 .overlay {
-                    GlyphStroke(Glyph.Check(), width: 3, size: 12)
-                        .foregroundStyle(.white)
+                    Group {
+                        if toast.style == .failed {
+                            GlyphStroke(Glyph.Close(), width: 3, size: 12)
+                        } else {
+                            GlyphStroke(Glyph.Check(), width: 3, size: 12)
+                        }
+                    }
+                    .foregroundStyle(.white)
                 }
             Text(toast.message)
                 .textStyle(Typography.toast)
@@ -40,7 +46,7 @@ extension Toast.Style {
         switch self {
         case .copied: Palette.success
         case .pasted: Color(hex: 0x0A84FF)
-        case .deleted: Palette.destructive
+        case .deleted, .failed: Palette.destructive
         }
     }
 }

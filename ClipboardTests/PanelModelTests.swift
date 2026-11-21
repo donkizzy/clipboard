@@ -74,13 +74,24 @@ struct PanelModelTests {
         #expect(!model.handleEscape())
     }
 
-    @Test("Copy confirms and asks the panel to close")
-    func copyDismisses() {
-        var requested: Duration?
-        model.onDismissRequest = { requested = $0 }
+    @Test("↵ and ⌘↵ hand the selected item to the action handler")
+    func copyAndPaste() {
+        let handler = RecordingHandler()
+        model.actionHandler = handler
+        model.select(index: 2)
         model.copySelected()
-        #expect(model.toast?.style == .copied)
-        #expect(requested == PanelModel.dismissDelayAfterCopy)
+        model.pasteSelected()
+        #expect(handler.copied.map(\.title) == ["Screenshot 2026-07-22 at 10.14.png"])
+        #expect(handler.pasted.map(\.title) == ["Screenshot 2026-07-22 at 10.14.png"])
+    }
+
+    @Test("Copy does nothing when nothing matches")
+    func copyWithNoSelection() {
+        let handler = RecordingHandler()
+        model.actionHandler = handler
+        model.query = "nothing matches this"
+        model.copySelected()
+        #expect(handler.copied.isEmpty)
     }
 
     @Test("Opening the panel starts fresh")
@@ -100,4 +111,12 @@ struct PanelModelTests {
         #expect(model.visible.prefix(2).allSatisfy { $0.isPinned })
         model.panelDidHide()
     }
+}
+
+@MainActor
+private final class RecordingHandler: PanelActionHandling {
+    var copied: [ClipSnapshot] = []
+    var pasted: [ClipSnapshot] = []
+    func copy(_ clip: ClipSnapshot) { copied.append(clip) }
+    func paste(_ clip: ClipSnapshot) { pasted.append(clip) }
 }

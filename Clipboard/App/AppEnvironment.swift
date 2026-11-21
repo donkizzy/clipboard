@@ -1,4 +1,5 @@
 import AppKit
+import KeyboardShortcuts
 
 /// Composition root: builds the object graph once at launch.
 @MainActor
@@ -7,11 +8,14 @@ final class AppEnvironment {
     let store: any ClipStore
     let panelModel: PanelModel
     let panelController: PanelController
+    let onboarding = AccessibilityOnboarding()
+    private let isDemo: Bool
 
     /// `nil` in demo mode, which never records the real clipboard.
     private(set) var capture: CaptureService?
 
     init(isDemo: Bool = DemoSeed.isEnabled) {
+        self.isDemo = isDemo
         preferences = Preferences()
 
         if isDemo {
@@ -30,11 +34,21 @@ final class AppEnvironment {
         }
 
         panelModel = PanelModel(store: store, preferences: preferences)
-        panelController = PanelController(model: panelModel)
+        panelController = PanelController(
+            model: panelModel,
+            pasteService: PasteService(ownWrites: capture?.ownWrites),
+            onboarding: onboarding
+        )
     }
 
     func start() {
         capture?.start()
+        KeyboardShortcuts.onKeyDown(for: .togglePanel) { [weak panelController] in
+            panelController?.toggle()
+        }
+        // Demo mode opens straight into the panel for screenshots and UI tests;
+        // normally it waits for the hotkey or the menu bar.
+        if isDemo { panelController.show() }
     }
 }
 

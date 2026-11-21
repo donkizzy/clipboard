@@ -4,10 +4,11 @@ A native macOS clipboard history manager: a floating, translucent panel opened w
 shows recent clipboard items as cards or rows, with search, type filters, pinning, Quick Look and
 keyboard-first navigation.
 
-Swift 6 · SwiftUI + AppKit · macOS 14 Sonoma or later · no web views.
+Swift 6 · SwiftUI + AppKit · macOS 14 Sonoma or later · no web views · one dependency:
+[KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) for the global hotkey.
 
-> **Status:** in development, milestone 3 of 6. Clipboard capture, persistence and privacy
-> filtering work. The global hotkey, paste-back and Settings are still to come.
+> **Status:** in development, milestone 4 of 6. Capture, history, the global hotkey and paste-back
+> work. Settings, launch at login and link metadata are still to come.
 
 ## Build and run
 
@@ -20,8 +21,7 @@ xcodebuild -scheme Clipboard -derivedDataPath build/DerivedData build
 ./scripts/test.sh            # unit tests
 ```
 
-The app lives in the menu bar (there's no Dock icon). For now the panel opens at launch and can be
-reopened from the menu bar extra.
+The app lives in the menu bar (there's no Dock icon). Press **⌘⇧V** anywhere to open the panel.
 
 History is stored in `~/Library/Application Support/Clipboard/`: the SwiftData store plus `images/`
 (originals) and `thumbnails/` (352px wide). `--demo` uses an in-memory store and never records or
@@ -56,7 +56,7 @@ Clipboard.app/Contents/MacOS/Clipboard --demo -layout list -appearance light --s
 
 | Key | Action |
 |---|---|
-| ⌘⇧V | Toggle the panel (global; arrives in M4) |
+| ⌘⇧V | Toggle the panel (global) |
 | ↑ ↓ | Move the selection |
 | ← → | Move the selection in the card layout, when the search is empty or unfocused |
 | ↵ / ⌘↵ | Copy / paste into the previous app |
@@ -91,12 +91,29 @@ adds the character there. The whole map is one pure function (`KeyRouter`), cove
   at launch.
 - **Own writes** are ignored by change count.
 
+## Paste-back
+
+↵ writes the item to the pasteboard, shows "Copied to clipboard" and closes the panel 0.6s later.
+⌘↵ also closes the panel, returns focus to the app you were using and sends it ⌘V. A "Pasted →
+*App*" toast appears where the panel was.
+
+Items are written back in their native form: plain strings, URLs as both `public.url` and a string,
+images as PNG or JPEG (plus TIFF, generated only if an app asks for it), and files as file URLs.
+
+Sending ⌘V needs the **Accessibility** permission. The first time you press ⌘↵ without it,
+Clipboard copies instead and opens a short explanation with a button to System Settings. That
+window closes by itself once access is granted.
+
+The ⌘V keystroke uses whichever key types "v" with ⌘ held in your current keyboard layout, so paste
+works on Dvorak, AZERTY and "Dvorak – QWERTY ⌘" too.
+
 ## Architecture
 
 | Folder | Responsibility |
 |---|---|
-| `App/` | Entry point, menu bar extra, composition root (`AppEnvironment`) |
-| `Panel/` | `FloatingPanel` (non-activating `NSPanel`), `PanelController` (show/hide/position), vibrancy |
+| `App/` | Entry point, menu bar extra, composition root (`AppEnvironment`), global hotkey |
+| `Panel/` | `FloatingPanel` (non-activating `NSPanel`), `PanelController` (show/hide/position, copy/paste), toast window, vibrancy |
+| `Paste/` | `PasteService` (typed pasteboard writes, ⌘V via `CGEvent`), Accessibility permission and onboarding |
 | `State/` | `PanelModel` (query, filter, selection, Quick Look, toasts), `KeyRouter`, scroll-into-view maths |
 | `Monitor/` | `PasteboardMonitor` (actor), `PasteboardReader`, `PrivacyFilter`, `ItemClassifier`, `CodeDetector`, `CaptureProcessor` |
 | `Model/` | `ClipSnapshot` (immutable, `Sendable`), `HistoryQuery`, `ClipItem` (`@Model`), `HistoryDatabase` (model actor), `HistoryStore` (main-actor mirror) |
@@ -135,6 +152,9 @@ Where SwiftUI or AppKit can't reproduce a CSS detail exactly:
 - **Dates.** Items older than a week show "12 Nov", with the year added for previous years.
 - **File sizes.** Sizes use the system's localized format, which writes "340 kB" where the design
   shows "340 KB".
+- **Paste keystroke.** ⌘V is sent with the key code that types "v" in the current layout rather
+  than a fixed key code 9. On US layouts that is still 9.
+- **Paste toast.** It names the target app ("Pasted → Notes") instead of the literal "frontmost app".
 - **Image files.** PNG and TIFF originals are saved as `.png`. JPEGs keep their original bytes as
   `.jpg`, because re-encoding them as PNG only makes them bigger. Images over 64 MB aren't recorded.
 

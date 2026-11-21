@@ -13,6 +13,9 @@ protocol ClipStore: AnyObject, Observable {
 
     func setPinned(_ isPinned: Bool, for id: UUID)
     func delete(_ id: UUID)
+
+    /// The full content for copy/paste (snapshots only carry previews).
+    func payload(for id: UUID) async -> ClipPayload?
 }
 
 /// A non-persistent store used for `--demo`, previews and UI tests.
@@ -32,5 +35,16 @@ final class InMemoryClipStore: ClipStore {
 
     func delete(_ id: UUID) {
         snapshots.removeAll { $0.id == id }
+    }
+
+    func payload(for id: UUID) async -> ClipPayload? {
+        guard let clip = snapshots.first(where: { $0.id == id }) else { return nil }
+        switch clip.content {
+        case .text(let text): return .text(text.preview)
+        case .link(let link): return .link(link.url)
+        // Demo images are gradients with no file; paste their title instead.
+        case .image(let image): return image.imageURL.map(ClipPayload.image) ?? .text(clip.title)
+        case .file(let file): return .files(file.urls)
+        }
     }
 }

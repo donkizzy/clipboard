@@ -16,7 +16,7 @@ struct RootView: View {
         let actions = ClipActions(model: model, focus: searchFocus)
 
         VStack(spacing: 0) {
-            SearchBar(query: $model.query, focus: searchFocus)
+            SearchBar(query: $model.query, focus: searchFocus, shortcutLabel: model.hotkeyLabel)
             FilterBar(
                 selection: model.filter,
                 counts: model.counts,

@@ -1,3 +1,4 @@
+import KeyboardShortcuts
 import SwiftUI
 
 @main
@@ -9,7 +10,7 @@ struct ClipboardApp: App {
             Button("Open Clipboard") {
                 appDelegate.environment.panelController.show()
             }
-            .keyboardShortcut("v", modifiers: [.command, .shift])
+            .globalKeyboardShortcut(.togglePanel)
 
             Divider()
 

@@ -7,6 +7,7 @@ struct Toast: Identifiable, Equatable, Sendable {
         case copied
         case pasted
         case deleted
+        case failed
     }
 
     let id = UUID()
@@ -14,8 +15,21 @@ struct Toast: Identifiable, Equatable, Sendable {
     let style: Style
 
     static let copied = Toast(message: "Copied to clipboard", style: .copied)
-    static let pasted = Toast(message: "Pasted → frontmost app", style: .pasted)
     static let deleted = Toast(message: "Deleted", style: .deleted)
+    static let failed = Toast(message: "Couldn't copy this item", style: .failed)
+
+    /// "Pasted → Notes", naming the app when known.
+    static func pasted(into appName: String?) -> Toast {
+        Toast(message: "Pasted → \(appName ?? "frontmost app")", style: .pasted)
+    }
+}
+
+/// Performs copy and paste for the panel. Implemented by `PanelController`,
+/// which owns the AppKit side (pasteboard, previous app, window).
+@MainActor
+protocol PanelActionHandling: AnyObject {
+    func copy(_ clip: ClipSnapshot)
+    func paste(_ clip: ClipSnapshot)
 }
 
 /// State and intents for the floating panel: query, filter, selection,
@@ -57,8 +71,10 @@ final class PanelModel {
     /// Reference time for relative timestamps; ticks every 30s while open.
     private(set) var now = Date.now
 
-    /// Asks the panel to close after a delay (e.g. once "Copied" has been seen).
-    @ObservationIgnored var onDismissRequest: ((Duration) -> Void)?
+    @ObservationIgnored weak var actionHandler: (any PanelActionHandling)?
+
+    /// The global shortcut, shown in the search bar chip.
+    var hotkeyLabel: String? = "⌘⇧V"
 
     @ObservationIgnored private var toastTask: Task<Void, Never>?
     @ObservationIgnored private var clockTask: Task<Void, Never>?
@@ -159,20 +175,16 @@ final class PanelModel {
         show(.deleted)
     }
 
-    /// Copies the selected item, confirms with a toast, then closes the panel.
-    /// Writing to the pasteboard arrives in M4.
+    /// ↵: copies the selected item to the pasteboard.
     func copySelected() {
-        guard selected != nil else { return }
-        show(.copied)
-        onDismissRequest?(Self.dismissDelayAfterCopy)
+        guard let selected else { return }
+        actionHandler?.copy(selected)
     }
 
-    /// Pastes the selected item into the previous app. The real paste-back
-    /// arrives in M4; until then this only confirms.
+    /// ⌘↵: pastes the selected item into the app that was frontmost.
     func pasteSelected() {
-        guard selected != nil else { return }
-        show(.pasted)
-        onDismissRequest?(Self.dismissDelayAfterCopy)
+        guard let selected else { return }
+        actionHandler?.paste(selected)
     }
 
     /// Esc: close the preview, else clear the search. Returns `false` when
@@ -189,8 +201,6 @@ final class PanelModel {
         return false
     }
 
-    /// Long enough to read the toast, short enough not to feel sluggish.
-    static let dismissDelayAfterCopy: Duration = .milliseconds(600)
 
     func toggleLayout() {
         preferences.layout = preferences.layout.toggled
