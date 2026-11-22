@@ -18,3 +18,6 @@ xcuserdata/
 
 # Coverage output from running instrumented builds directly
 *.profraw
+
+# JetBrains workspace
+.idea/

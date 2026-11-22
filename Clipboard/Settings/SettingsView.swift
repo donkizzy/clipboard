@@ -146,21 +146,21 @@ private struct PrivacySettings: View {
                     .help(isConcealedLocked ? "Unlock to change" : "Lock")
                     .accessibilityLabel(isConcealedLocked ? "Unlock setting" : "Lock setting")
                 }
-                Text("Password managers mark what they copy as concealed. Clipboard never reads or stores those items.")
+                Text("When enabled, Clipboard skips items that the source app marks as concealed. Unmarked sensitive text can still enter history.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             Section {
                 Toggle("Fetch link titles and icons", isOn: $preferences.fetchesLinkPreviews)
-                Text("Loads each copied web link once to show its title and icon. Local and private-network addresses are never fetched.")
+                Text("Contacts eligible websites to fetch titles and icons for copied links. Turn this off to keep copied URLs from triggering preview requests.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             Section("Ignored apps") {
                 IgnoredAppsList(bundleIDs: $preferences.ignoredBundleIDs, selection: $selection)
-                Text("Nothing copied in these apps is recorded.")
+                Text("Clipboard skips copies it can attribute to these apps.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
