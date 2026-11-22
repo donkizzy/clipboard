@@ -4,9 +4,11 @@ A native macOS menu bar app for finding something you copied earlier. Press **Co
 
 ## Install
 
-**Requires macOS 14 Sonoma or later.** Version 0.1.0 is a local release candidate. A public binary is pending Developer ID signing and Apple notarization. To install today from a checkout, follow [Build from a clean checkout](CONTRIBUTING.md#build-from-a-clean-checkout).
+**[Download Clipboard for macOS (0.1.0 RC 1, ZIP)](https://github.com/donkizzy/clipboard/releases/download/v0.1.0-rc.1/Clipboard-0.1.0-macOS-local-rc.zip)**
 
-If you [built the local candidate archive](docs/RELEASING.md#build-a-local-candidate), open `Clipboard-0.1.0-macOS-local-rc.zip` in Finder, then drag **Clipboard.app** into **Applications** and open it. The local archive is ad-hoc signed for testing on the build Mac. macOS may block a copy downloaded from another computer.
+Requires macOS 14 Sonoma or later. The ZIP includes Apple silicon and Intel support. This prerelease is ad-hoc signed and unnotarized, so Gatekeeper may block it on first launch.
+
+Double-click the ZIP in Finder, drag **Clipboard.app** into **Applications**, then open it. The [release notes and SHA-256 checksum](https://github.com/donkizzy/clipboard/releases/tag/v0.1.0-rc.1) include verification instructions and tested configurations. You can also [build Clipboard from source](CONTRIBUTING.md#build-from-a-clean-checkout).
 
 ### Your first clip
 
